@@ -10,7 +10,7 @@ import cv2
 import numpy as np
 import constant
 
-WIDTH, HEIGHT = [480, 640]
+WIDTH, HEIGHT = [640, 480]
 
 warnings.filterwarnings('ignore')
 is_debug = True
@@ -48,6 +48,8 @@ class Rider:
 class Field:
     length = None
     lane_size = None
+    type = constant.GRASS
+    slope = {constant.FLAT}
     weather = constant.CLEAR
     
     def __init__(self, length, lane_size):
@@ -56,6 +58,18 @@ class Field:
     
     def set_weather(self, weather):
         self.weather = weather
+
+    def set_slope(self, slope):
+        self.slope = slope
+
+    def get_type(self, progress):
+        progress = self.length - progress
+        for i in range(11):
+            a = i / 10
+            if a in self.slope:
+                f_type = self.slope[a]
+            if progress < self.length * a: break 
+        return f_type
 
 # allからnum分だけランダムに選択する関数
 def random_select(all, num):
@@ -84,13 +98,65 @@ def imscatter(x, y, image, ax=None, zoom=1):
     im = OffsetImage(image, zoom=zoom) 
     artists = [] 
     for x0, y0 in zip(x, y): 
-        ab = AnnotationBbox(im, (x0, y0), xycoords='data', frameon=False) 
+        ab = AnnotationBbox(im, (x0, y0 + random.uniform(-0.025, 0.025)), xycoords='data', frameon=False) 
         artists.append(ax.add_artist(ab)) 
-    return artists 
+    return artists
+
+def progress(horse, field):
+    return random.randrange(1,10)
+
+def gen_image(slope, length):
+    test = [key for key in slope]
+
+    slope_area = []
+    for i in range(len(test)):
+        if i != len(test) - 1:
+            slope_area.append((int(test[i] * length), int(test[i + 1] * length), [i for i in slope.values()][i]))
+        else: slope_area.append((int(test[i] * length), int(1 * length), [i for i in slope.values()][i]))
+
+    print(slope_area)
+    xy = []
+    for i, area in enumerate(slope_area):
+        x = np.arange(area[0], area[1])
+        match area[2]:
+            case constant.UP:
+                if area[0] != 0:
+                    print(xy[i - 1][1][-1])
+                    y = x + xy[i - 1][1][-1] - area[0]
+                else:
+                    y = x - 0.5
+            case constant.DOWN:
+                if area[0] != 0:
+                    print(xy[i - 1][1][-1])
+                    print(area[0])
+                    y = -1 * x + xy[i - 1][1][-1] + area[0]
+                else:
+                    y = -1 * x - 0.5
+            case constant.FLAT:
+                if area[0] != 0:
+                    y = np.array([xy[i - 1][1][-1] for _ in range(area[0], area[1])])
+                else: 
+                    y = np.array([1 for _ in range(area[0], area[1])])
+        y = y
+        xy.append((x, y))
+    fig, ax = plt.subplots()
+    plt.gca().spines['right'].set_visible(False)
+    plt.gca().spines['top'].set_visible(False)
+    plt.gca().spines['bottom'].set_visible(False)
+    plt.gca().spines['left'].set_visible(False)
+    ax.tick_params(left=False, top=False, right = False, bottom = False, labelleft=False, labelbottom = False)
+    for i in xy:
+        ax.plot(i[0], i[1])
+    fig.canvas.draw()
+    im = np.array(fig.canvas.renderer.buffer_rgba())
+    im = cv2.cvtColor(im, cv2.COLOR_RGBA2BGR)
+    im = cv2.resize(im,(WIDTH,100))
+    return im
 
 def main():
 
     field = Field(200, 3)
+    field.set_slope({0: constant.FLAT, 0.2: constant.UP, 0.3: constant.DOWN, 0.5: constant.FLAT, 0.7: constant.DOWN, 0.9: constant.UP})
 
     # 馬情報を設定する
     horse_number = []
@@ -180,15 +246,20 @@ def main():
     race_graph_df = pd.DataFrame(columns = horse_number[:field.lane_size])
     img = plt.imread("static/plane.jpg")
     fig, ax = plt.subplots()
+    plt.gca().spines["left"].set_visible(False)
+    plt.gca().spines["top"].set_visible(False)
+    plt.gca().spines["right"].set_color("red")
+    plt.gca().spines["right"].set_linewidth(3) 
     fourcc = cv2.VideoWriter_fourcc('m', 'p', '4', 'v')
-    video = cv2.VideoWriter('result/video.mp4',fourcc, 20.0, (HEIGHT, WIDTH))
+    video = cv2.VideoWriter('result/video.mp4',fourcc, 20.0, (WIDTH, HEIGHT))
+
+    im_slope = gen_image(field.slope, field.length)
 
     race_finish = False
+    rank = []
     # 1位が決まるまで繰り返す
     while(race_finish == False):
         ax.cla()
-        ax.set_title("Race Result")
-        ax.set_xlabel("Time")
         ax.tick_params(left=False, top=False)
         ax.set_xlim([0, field.length])
         ax.set_ylim([0 - 0.5, field.lane_size - 0.5])
@@ -196,33 +267,37 @@ def main():
         ax.set_yticklabels(horse_name)
         for a in range(field.lane_size):
             # ゴールしているレーンはスキップ
-            length_lest[a] = length_lest[a] - random.randrange(1,10)
+            length_lest[a] = length_lest[a] - progress(lane_info[a], field)
+            #print(field.get_type(length_lest[a]))
             #グラフ用にデータフレームとして保存しておく
             df_race = pd.DataFrame(data=[length_lest], columns=horse_number[:field.lane_size])
             race_graph_df = pd.concat([race_graph_df, df_race], ignore_index = True)
             
             # ゴールした時
-            if (length_lest[a] <= 0) and (goal_min > length_lest[a]):
-                win_lane = a
-                goal_min = length_lest[a]
-                race_finish = True
-                print(win_lane)
+            if (length_lest[a] <= 0):
+                #win_lane = a
+                if a not in rank :rank.append(a)
+                #race_finish = True
+        print(length_lest)
+        if np.all(np.array(length_lest) <= 0) == True: race_finish = True
         xlim = ax.get_xlim()
         ylim = ax.get_ylim()
         ax.imshow(img, alpha=0.6,extent=[*xlim, *ylim], aspect='auto')
         imscatter([field.length - n for n in length_lest], [n for n in range(field.lane_size)], "static/horse.png", ax, 0.08)
-        #plt.pause(0.001)
-        #'''
         fig.canvas.draw()
         im = np.array(fig.canvas.renderer.buffer_rgba())
         im = cv2.cvtColor(im, cv2.COLOR_RGBA2BGR)
-        video.write(im)
-        #'''
-        plt.pause(0.001)
-        #print(length_lest[0])
+        im = cv2.copyMakeBorder(im, 80, 0, 0, 0, cv2.BORDER_CONSTANT, value=[255,255,255])
+        im[50:150, 0:640] = im_slope
+        cv2.imshow("test", im)
+        cv2.waitKey(1)
+        #video.write(im)
     # レース結果を表示する
     print("--レース結果--")
-    print("1着: "+str(lane_info[win_lane].id))
+    print(rank)
+    for n in range(len(rank)):
+        print(f"{n + 1}着: {lane_info[rank[n]].id} {lane_info[rank[n]].name}")
+    #print("1着: "+str(lane_info[rank[0]].id))
     print("--------------")
 
     # レースのグラフを表示する
@@ -236,8 +311,8 @@ def main():
     plt.show()
     '''
     # 金額変動を判定する
-    if predict == lane_info[win_lane].id:
-        money = int(money + stakes*odds[win_lane])
+    if predict == lane_info[rank[0]].id:
+        money = int(money + stakes*odds[rank[0]])
     print("結果: "+str(start_money)+" → "+str(money))
 
     # 終了処理
