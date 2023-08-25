@@ -18,26 +18,23 @@ warnings.filterwarnings('ignore')
 is_debug = True
 
 class Horse:
-    id = None
-    name = None
-    condition = c.NORMAL
-    rider = None
-    fine_type = c.GRASS
-    skill = None
-    stats = {"speed": 20, "hp": 20, "power": 20}
-    stats_now = None
-    status = c.RUN
     def __init__(self, id, name):
         self.id = id
         self.name = name
+        self.stats = {"speed": 20, "hp": 20, "power": 20}
         self.stats_now = dict.copy(self.stats)
+        self.condition = c.NORMAL
+        self.rider = None
+        self.fine_type = c.GRASS
+        self.skill = None
+        self.status = c.RUN
 
     def horse_info(self):
         return {"id":self.id, "name":self.name, "rider":self.rider, "condition":self.condition ,"skill":self.skill, "goodat":self.fine_type}
-    
+
     def set_condition(self, con):
         self.condition = con
-    
+
     def set_rider(self, rider):
         self.rider = rider
 
@@ -46,34 +43,28 @@ class Horse:
 
     def set_skill(self, skill):
         self.skill = skill
-    
+
     def has_skill(self, skill):
         return True if self.skill == skill else False
 
 class Rider:
-    id = None
-    name = None
-    condition = c.NORMAL
-    
     def __init__(self, id, name):
         self.id = id
         self.name = name
+        self.condition = c.NORMAL
 
     def set_condition(self, con):
         self.condition = con
 
 class Field:
-    length = None
-    lane_size = None
-    lane_info = []
-    type = c.GRASS
-    slope = {c.FLAT}
-    weather = c.CLEAR
-    
     def __init__(self, length, lane_size):
         self.length = length
         self.lane_size = lane_size
-    
+        self.lane_info = []
+        self.type = c.GRASS
+        self.slope = {0: c.FLAT}
+        self.weather = c.CLEAR
+
     def set_weather(self, weather):
         self.weather = weather
 
@@ -86,27 +77,27 @@ class Field:
             a = i / 10
             if a in self.slope:
                 f_type = self.slope[a]
-            if progress < self.length * a: break 
+            if progress < self.length * a: break
         return f_type
-    
+
     def add_horse(self, horse):
         self.lane_info.append(horse)
 
 def alart(message):
     print("\033[31m" + message + "\033[0m")
 
-def imscatter(x, y, image, ax=None, zoom=1): 
-    if ax is None: 
-        ax = plt.gca() 
-    try: 
-        image = plt.imread(image) 
+def imscatter(x, y, image, ax=None, zoom=1):
+    if ax is None:
+        ax = plt.gca()
+    try:
+        image = plt.imread(image)
     except:
-        pass 
-    im = OffsetImage(image, zoom=zoom) 
-    artists = [] 
-    for x0, y0 in zip(x, y): 
-        ab = AnnotationBbox(im, (x0, y0 + random.uniform(-0.025, 0.025)), xycoords='data', frameon=False) 
-        artists.append(ax.add_artist(ab)) 
+        pass
+    im = OffsetImage(image, zoom=zoom)
+    artists = []
+    for x0, y0 in zip(x, y):
+        ab = AnnotationBbox(im, (x0, y0 + random.uniform(-0.025, 0.025)), xycoords='data', frameon=False)
+        artists.append(ax.add_artist(ab))
     return artists
 
 def gen_image(slope, length):
@@ -135,7 +126,7 @@ def gen_image(slope, length):
             case c.FLAT:
                 if area[0] != 0:
                     y = np.array([xy[i - 1][1][-1] for _ in range(area[0], area[1])])
-                else: 
+                else:
                     y = np.array([1 for _ in range(area[0], area[1])])
         xy.append((x, y))
     fig, ax = plt.subplots()
@@ -153,7 +144,7 @@ def gen_image(slope, length):
     return im
 
 def progress(horse, field, lest):
-    fix = 0.8 if horse.has_skill(c.ACCELERATION) else 1.0
+    fix = 0.85 if horse.has_skill(c.ACCELERATION) else 1.0
     condition = int((horse.condition + horse.rider.condition)/2)
     match condition:
         case c.FINE: fix += 0.25
@@ -161,15 +152,18 @@ def progress(horse, field, lest):
         case c.NORMAL: fix += 0
         case c.NOT_GOOD: fix += -0.125
         case c.BAD: fix += -0.25
-    if horse.fine_type == field.type: fix += 0.1
+    if horse.fine_type == field.type: fix += 0.2
     match field.get_slope(lest):
         case c.FLAT: fix += 0
-        case c.UP: 
+        case c.UP:
             if horse.has_skill(c.ANTI_UP): fix += 0.2
             fix += -0.5
         case c.DOWN:
             if horse.has_skill(c.ANTI_DOWN): fix += 0.2
             fix += 0.1
+    if not horse.has_skill(c.ANTI_RAIN):
+        if field.weather == c.CLOUDY: fix += -0.1
+        elif field.weather == c.RAIN: fix += -0.2
     if lest > field.length / 2:
         if horse.stats_now["hp"] > 0 and horse.status != c.REST:
             horse.stats_now["hp"] -= 1
@@ -179,7 +173,7 @@ def progress(horse, field, lest):
             horse.stats_now["hp"] += 1
             if horse.stats_now["hp"] >= horse.stats["hp"]: horse.status = c.RUN
             prog = int(random.randint(horse.stats["speed"] - 5, horse.stats["speed"] + 0) * fix)
-    else: 
+    else:
         if horse.stats_now["power"] > 0 and horse.status != c.REST:
             horse.stats_now["power"] -= 1
             prog = int(random.randint(horse.stats["speed"] - 5, horse.stats["speed"] + 5) * fix)
@@ -273,9 +267,9 @@ def create_horse(name, horse: Horse):
 
 def main():
 
-    create_horse("sana", Horse(37, "ｷﾝｸﾞｻﾅﾄﾘｳﾑ"))
+    #create_horse("sana", Horse(37, "ｷﾝｸﾞｻﾅﾄﾘｳﾑ"))
 
-    field = Field(2000, 4)
+    field = Field(200, 4)
     field.set_slope({0: c.FLAT, 0.2: c.UP, 0.3: c.DOWN, 0.5: c.FLAT, 0.7: c.DOWN, 0.9: c.UP})
     #field.set_slope({0: c.FLAT})
     # 馬情報を設定する
@@ -345,17 +339,17 @@ def main():
     while True:
         try:
             stakes = int(input("賭け金[円]: "))
-            if stakes > money: 
+            if stakes > money:
                 alart("掛け金が所持金を超えています")
             else: break
         except:
-            alart("掛け金は整数値である必要があります") 
+            alart("掛け金は整数値である必要があります")
     money = money - stakes
     print("")
 
     print("レースを開始します")
-    #rank = start_race(field)
-    rank = start_race_culc_only(field)
+    rank = start_race(field)
+    #rank = start_race_culc_only(field)
     print("--レース結果--")
     print(rank)
     for i, n in enumerate(rank, 1):
