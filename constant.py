@@ -8,9 +8,14 @@ GRASS = 0
 DURT = 1
 
 # Slope
-SLOPE_FLAT = 0
-SLOPE_UP = 1
-SLOPE_DOWN = 2
+FLAT = 0
+UP = 1
+DOWN = 2
+
+# Status
+STATUS = ["RUN", "REST"]
+RUN = 0
+REST = 1
 
 # Condition
 CONDITIONS = ["FINE", "GOOD", "NORMAL", "NOT_GOOD", "BAD"]
