@@ -16,9 +16,10 @@ def train_test_split(df):
     return x, y, group
 
 df = pd.DataFrame()
-for index in range(10000):
+for index in range(5000):
     lane_size = random.randint(2, 18)
     field = Field(200, lane_size)
+    #field.set_slope({0: c.DOWN})
     field.length = random.randint(100, 3000)
     field.weather = random.randint(c.CLEAR, c.RAIN)
     field.type = random.randint(c.GRASS, c.DURT)

@@ -112,22 +112,21 @@ def gen_image(slope, length):
     xy = []
     for i, area in enumerate(slope_area):
         x = np.arange(area[0], area[1])
-        match area[2]:
-            case c.UP:
-                if area[0] != 0:
-                    y = x + xy[i - 1][1][-1] - area[0]
-                else:
-                    y = x - 0.5
-            case c.DOWN:
-                if area[0] != 0:
-                    y = -1 * x + xy[i - 1][1][-1] + area[0]
-                else:
-                    y = -1 * x - 0.5
-            case c.FLAT:
-                if area[0] != 0:
-                    y = np.array([xy[i - 1][1][-1] for _ in range(area[0], area[1])])
-                else:
-                    y = np.array([1 for _ in range(area[0], area[1])])
+        if area[2] == c.UP:
+            if area[0] != 0:
+                y = x + xy[i - 1][1][-1] - area[0]
+            else:
+                y = x - 0.5
+        elif area[2] == c.DOWN:
+            if area[0] != 0:
+                y = -1 * x + xy[i - 1][1][-1] + area[0]
+            else:
+                y = -1 * x - 0.5
+        elif area[2] == c.FLAT:
+            if area[0] != 0:
+                y = np.array([xy[i - 1][1][-1] for _ in range(area[0], area[1])])
+            else:
+                y = np.array([1 for _ in range(area[0], area[1])])
         xy.append((x, y))
     fig, ax = plt.subplots()
     plt.gca().spines['right'].set_visible(False)
@@ -146,21 +145,20 @@ def gen_image(slope, length):
 def progress(horse, field, lest):
     fix = 0.85 if horse.has_skill(c.ACCELERATION) else 1.0
     condition = int((horse.condition + horse.rider.condition)/2)
-    match condition:
-        case c.FINE: fix += 0.25
-        case c.GOOD: fix += 0.125
-        case c.NORMAL: fix += 0
-        case c.NOT_GOOD: fix += -0.125
-        case c.BAD: fix += -0.25
+    if condition == c.FINE: fix += 0.25
+    elif condition == c.GOOD: fix += 0.125
+    elif condition == c.NORMAL: fix += 0
+    elif condition == c.NOT_GOOD: fix += -0.125
+    elif condition == c.BAD: fix += -0.25
     if horse.fine_type == field.type: fix += 0.2
-    match field.get_slope(lest):
-        case c.FLAT: fix += 0
-        case c.UP:
-            if horse.has_skill(c.ANTI_UP): fix += 0.2
-            fix += -0.5
-        case c.DOWN:
-            if horse.has_skill(c.ANTI_DOWN): fix += 0.2
-            fix += 0.1
+    field_type = field.get_slope(lest)
+    if field_type == c.FLAT: fix += 0
+    elif field_type == c.UP:
+        if horse.has_skill(c.ANTI_UP): fix *= 0.8
+        fix *= 0.6
+    elif field_type == c.DOWN:
+        if horse.has_skill(c.ANTI_DOWN): fix *= 1.4
+        fix *= 1.2
     if not horse.has_skill(c.ANTI_RAIN):
         if field.weather == c.CLOUDY: fix += -0.1
         elif field.weather == c.RAIN: fix += -0.2
@@ -229,9 +227,9 @@ def start_race(field):
         im = cv2.cvtColor(im, cv2.COLOR_RGBA2BGR)
         im = cv2.copyMakeBorder(im, 80, 0, 0, 0, cv2.BORDER_CONSTANT, value=[255,255,255])
         im[50:150, 0:640] = im_slope
-        cv2.imshow("test", im)
-        cv2.waitKey(1)
-        #video.write(im)
+        #cv2.imshow("test", im)
+        #cv2.waitKey(1)
+        video.write(im)
     return rank
 
 def start_race_culc_only(field):
@@ -256,10 +254,11 @@ def start_race_culc_only(field):
     return rank
 
 def load_horse(name):
+    ans = None
     if os.path.exists(f"{name}.pkl"):
         with open(f"{name}.pkl", "rb") as f:
-            return pickle.load(f)
-    else: return None
+            ans = pickle.load(f)
+    return ans
 
 def create_horse(name, horse: Horse):
     with open(f"{name}.pkl", "wb") as f:
@@ -267,11 +266,9 @@ def create_horse(name, horse: Horse):
 
 def main():
 
-    #create_horse("sana", Horse(37, "ｷﾝｸﾞｻﾅﾄﾘｳﾑ"))
-
     field = Field(200, 4)
-    field.set_slope({0: c.FLAT, 0.2: c.UP, 0.3: c.DOWN, 0.5: c.FLAT, 0.7: c.DOWN, 0.9: c.UP})
-    #field.set_slope({0: c.FLAT})
+    #field.set_slope({0: c.FLAT, 0.2: c.UP, 0.3: c.DOWN, 0.5: c.FLAT, 0.7: c.DOWN, 0.9: c.UP})
+    #field.set_slope({0: c.UP})
     # 馬情報を設定する
     horse_name = ['horseA','horseB','horseC']
     rider_name = ['riderA','riderB','riderC', "NATORI"]
@@ -365,6 +362,3 @@ def main():
     print("3秒後に終了します")
     time.sleep(3)
     #os.system('cls') if os.name in ('nt', 'dos') else os.system('clear')
-
-if __name__ == "__main__":
-    main()
