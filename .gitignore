@@ -3,5 +3,7 @@
 __pycache__/
 *.exe
 *.pkl
+video.mp4
 test.py
 sec.py
+settings.py
