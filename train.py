@@ -16,9 +16,10 @@ def train_test_split(df):
     return x, y, group
 
 df = pd.DataFrame()
-for index in range(5000):
+for index in range(10000):
     lane_size = random.randint(2, 18)
-    field = Field(200, lane_size)
+    length = random.randint(200, 5000)
+    field = Field(length, lane_size)
     #field.set_slope({0: c.DOWN})
     field.length = random.randint(100, 3000)
     field.weather = random.randint(c.CLEAR, c.RAIN)
@@ -56,8 +57,8 @@ for index in range(5000):
     lane = [n for n in range(len(field.lane_info))]
     query_id = [index for _ in range(field.lane_size)]
 
-    df = pd.concat([df, pd.DataFrame({"weather": weather, "field_type": field_type, "condition_horse": condition_horse, "condition_rider": condition_rider\
-                    , "fine_type": fine_type, "skill": skill, "speed": speed, "hp": hp, "power": power, "rank": ranking, "query_id": query_id})])
+    df = pd.concat([df, pd.DataFrame({"condition_horse": condition_horse, "condition_rider": condition_rider, "fine_type": fine_type, \
+                                      "skill": skill, "speed": speed, "hp": hp, "power": power, "rank": ranking, "query_id": query_id})])
     target = df["rank"]
     feature = df.drop("rank", axis=1)
 
@@ -71,7 +72,7 @@ x_test, y_test, eval_group = train_test_split(test)
 
 model = lgb.LGBMRanker(random_state=0)
 model.fit(x_train, y_train, group=group, eval_set=[(x_test, y_test)], eval_group=[list(eval_group)])
-model.booster_.save_model('keiba3_model.txt')
+model.booster_.save_model('keiba4_model.txt')
 
 feature = list(df.drop(columns=['rank', 'query_id']).columns)
 importance = np.array(model.feature_importances_)

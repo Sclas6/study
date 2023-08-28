@@ -83,6 +83,12 @@ class Field:
     def add_horse(self, horse):
         self.lane_info.append(horse)
 
+    def get_horses(self):
+        horse_list = {}
+        for index, horse in enumerate(self.lane_info, 1):
+            horse_list[f"第{index}レーン"] = horse.name
+        return horse_list
+
 def alart(message):
     print("\033[31m" + message + "\033[0m")
 
@@ -162,24 +168,25 @@ def progress(horse, field, lest):
     if not horse.has_skill(c.ANTI_RAIN):
         if field.weather == c.CLOUDY: fix += -0.1
         elif field.weather == c.RAIN: fix += -0.2
+    speed = horse.stats["speed"]
     if lest > field.length / 2:
         if horse.stats_now["hp"] > 0 and horse.status != c.REST:
             horse.stats_now["hp"] -= 1
-            prog = int(random.randint(horse.stats["speed"] - 5, horse.stats["speed"] + 5) * fix)
+            prog = int(random.randint(speed - 5, speed + 5) * fix)
         else:
             horse.status = c.REST
             horse.stats_now["hp"] += 1
             if horse.stats_now["hp"] >= horse.stats["hp"]: horse.status = c.RUN
-            prog = int(random.randint(horse.stats["speed"] - 5, horse.stats["speed"] + 0) * fix)
+            prog = int(random.randint(int(speed/2) - 5, int(speed/2) + 5) * fix)
     else:
         if horse.stats_now["power"] > 0 and horse.status != c.REST:
             horse.stats_now["power"] -= 1
-            prog = int(random.randint(horse.stats["speed"] - 5, horse.stats["speed"] + 5) * fix)
+            prog = int(random.randint(speed - 5, speed + 5) * fix)
         else:
             horse.status = c.REST
             horse.stats_now["power"] += 1
             if horse.stats_now["power"] >= horse.stats["power"]: horse.status = c.RUN
-            prog = int(random.randint(horse.stats["speed"] - 5, horse.stats["speed"] + 0) * fix)
+            prog = int(random.randint(int(speed/2) - 5, int(speed/2) + 0) * fix)
     return prog
 
 def start_race(field):
@@ -227,9 +234,9 @@ def start_race(field):
         im = cv2.cvtColor(im, cv2.COLOR_RGBA2BGR)
         im = cv2.copyMakeBorder(im, 80, 0, 0, 0, cv2.BORDER_CONSTANT, value=[255,255,255])
         im[50:150, 0:640] = im_slope
-        #cv2.imshow("test", im)
-        #cv2.waitKey(1)
-        video.write(im)
+        cv2.imshow("test", im)
+        cv2.waitKey(1)
+        #video.write(im)
     return rank
 
 def start_race_culc_only(field):
@@ -266,7 +273,7 @@ def create_horse(name, horse: Horse):
 
 def main():
 
-    field = Field(200, 4)
+    field = Field(2000, 3)
     #field.set_slope({0: c.FLAT, 0.2: c.UP, 0.3: c.DOWN, 0.5: c.FLAT, 0.7: c.DOWN, 0.9: c.UP})
     #field.set_slope({0: c.UP})
     # 馬情報を設定する
@@ -281,7 +288,7 @@ def main():
     for n in range(len(rider_name)):
         riders.append(Rider(n, rider_name[n]))
 
-    horses.insert(0, load_horse("sana"))
+    #horses.insert(0, load_horse("sana"))
     horses = horses[:field.lane_size]
 
     for rider in riders:

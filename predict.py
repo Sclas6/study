@@ -28,7 +28,7 @@ speed = [n.stats["speed"] for n in field.lane_info]
 hp = [n.stats["hp"] for n in field.lane_info]
 power = [n.stats["power"] for n in field.lane_info]
 lane = [n for n in range(len(field.lane_info))]
-df = pd.DataFrame({"weather": weather, "field_type": field_type, "condition_horse": condition_horse, "condition_rider": condition_rider\
+df = pd.DataFrame({"condition_horse": condition_horse, "condition_rider": condition_rider\
                 , "fine_type": fine_type, "skill": skill, "speed": speed, "hp": hp, "power": power})
 
 bst = lgb.Booster(model_file='keiba2_model.txt')
