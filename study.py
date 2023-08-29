@@ -18,22 +18,26 @@ warnings.filterwarnings('ignore')
 is_debug = True
 
 class Horse:
-    def __init__(self, id, name):
-        self.id = id
+    def __init__(self, name):
+        self.id = None
         self.name = name
         self.stats = {"speed": 20, "hp": 20, "power": 20}
         self.stats_now = dict.copy(self.stats)
         self.condition = c.NORMAL
         self.rider = None
         self.fine_type = c.GRASS
-        self.skill = None
+        self.skill = c.NONE
         self.status = c.RUN
+        self.odds = 1.00
 
     def horse_info(self):
         return {"id":self.id, "name":self.name, "rider":self.rider, "condition":self.condition ,"skill":self.skill, "goodat":self.fine_type}
 
     def set_condition(self, con):
         self.condition = con
+    
+    def set_id(self, id):
+        self.id = id
 
     def set_rider(self, rider):
         self.rider = rider
@@ -46,6 +50,10 @@ class Horse:
 
     def has_skill(self, skill):
         return True if self.skill == skill else False
+
+    def reset_condition(self):
+        if self.has_skill(c.STABLE): self.set_condition(c.GOOD)
+        else: self.set_condition(random.randint(c.FINE, c.BAD))
 
 class Rider:
     def __init__(self, id, name):
@@ -262,13 +270,13 @@ def start_race_culc_only(field):
 
 def load_horse(name):
     ans = None
-    if os.path.exists(f"{name}.pkl"):
-        with open(f"{name}.pkl", "rb") as f:
+    if os.path.exists(f"pkl/horses/{name}.pkl"):
+        with open(f"pkl/horses/{name}.pkl", "rb") as f:
             ans = pickle.load(f)
     return ans
 
 def create_horse(name, horse: Horse):
-    with open(f"{name}.pkl", "wb") as f:
+    with open(f"pkl/horses/{name}.pkl", "wb") as f:
         pickle.dump(horse, f)
 
 def main():
@@ -283,7 +291,7 @@ def main():
     riders = []
     #running_horses = []
     for n in range(len(horse_name)):
-        horses.append(Horse(n, horse_name[n]))
+        horses.append(Horse(horse_name[n]))
 
     for n in range(len(rider_name)):
         riders.append(Rider(n, rider_name[n]))
@@ -295,6 +303,7 @@ def main():
         rider.set_condition(random.randint(c.FINE, c.BAD))
     horses[0].set_skill(c.ACCELERATION)
     for horse in horses:
+        horse.set_id(0)
         if horse.skill == None: horse.set_skill(c.STABLE)
         if horse.has_skill(c.STABLE): horse.set_condition(c.GOOD)
         else: horse.set_condition(random.randint(c.FINE, c.BAD))

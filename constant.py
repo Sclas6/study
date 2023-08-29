@@ -29,9 +29,10 @@ NOT_GOOD = 3
 BAD = 4
 
 #Skill
-SKILLS = ["調子安定", "上り坂○", "下り坂○", "加速", "雨天○"]
+SKILLS = ["調子安定", "上り坂○", "下り坂○", "加速", "雨天○", "なし"]
 STABLE = 0
 ANTI_UP = 1
 ANTI_DOWN = 2
 ACCELERATION = 3
 ANTI_RAIN = 4
+NONE = 5

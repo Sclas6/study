@@ -16,7 +16,7 @@ def train_test_split(df):
     return x, y, group
 
 df = pd.DataFrame()
-for index in range(10000):
+for index in range(10):
     lane_size = random.randint(2, 18)
     length = random.randint(200, 5000)
     field = Field(length, lane_size)
@@ -26,7 +26,8 @@ for index in range(10000):
     field.type = random.randint(c.GRASS, c.DURT)
 
     for n in range(lane_size):
-        horse = Horse(n, f"{n}")
+        horse = Horse(f"{n}")
+        horse.set_id(n)
         horse.set_rider(Rider(n, f"n"))
         horse.fine_type = random.randint(c.GRASS, c.DURT)
         horse.condition = random.randint(c.FINE, c.BAD)
