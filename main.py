@@ -4,7 +4,7 @@ from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage, JoinEvent, FlexSendMessage, ImageSendMessage, VideoSendMessage
 from linebot.models import RichMenu, RichMenuArea, RichMenuBounds, RichMenuSize, MessageAction, PostbackAction, PostbackEvent
 import os
-import lightgbm as lgb
+import pickle
 import unicodedata
 from study import *
 
@@ -13,14 +13,14 @@ from sec import *
 class Room:
     def __init__(self, id):
         self.id = id
-        self.field = create_random_field(None)
+        self.race = create_random_race(None)
         self.status = None
 
-    def set_field(self, field):
-        self.field = field
+    def set_race(self, race: Race):
+        self.race = race
 
-    def get_field(self):
-        return self.field
+    def get_race(self):
+        return self.race
 
     def set_status(self, status):
         self.status = status
@@ -47,6 +47,17 @@ def load_rooms():
     if os.path.exists("pkl/rooms.pkl"):
         with open("pkl/rooms.pkl", "rb") as f:
             rooms = pickle.load(f)
+
+def load_horse(name):
+    ans = None
+    if os.path.exists(f"pkl/horses/{name}.pkl"):
+        with open(f"pkl/horses/{name}.pkl", "rb") as f:
+            ans = pickle.load(f)
+    return ans
+
+def create_horse(name, horse: Horse):
+    with open(f"pkl/horses/{name}.pkl", "wb") as f:
+        pickle.dump(horse, f)
 
 def make_pkl(var, name):
     with open(f"{name}.pkl", "wb") as f:
@@ -76,7 +87,7 @@ def get_icon(i):
         icon = "capital_s"
     return f"https://sclas.xyz:334/img/icon/{icon}.png"
 
-def create_random_field(user_horse):
+def create_random_race(user_horse):
     lane_size = random.randint(2, 12)
     field = Field(4000, lane_size)
     #field.set_slope({0: c.DOWN})
@@ -84,10 +95,8 @@ def create_random_field(user_horse):
     field.weather = random.randint(c.CLEAR, c.RAIN)
     field.type = random.randint(c.GRASS, c.DURT)
     horses = []
-
     for n in range(lane_size):
-        if n == 0:
-            if user_horse is not None: horse = user_horse
+        if n == 0 and user_horse is not None: horse = user_horse
         else:
             horse = Horse(f"{n}")
             horse.skill = random.randint(c.STABLE, c.NONE)
@@ -95,15 +104,14 @@ def create_random_field(user_horse):
             horse.stats["hp"] = random.randint(10, 100)
             horse.stats["power"] = random.randint(10, 100)
             horse.fine_type = random.randint(c.GRASS, c.DURT)
-        horse.set_rider(Rider(n, f"n"))
+        horse.set_rider(Rider(f"n"))
         horse.reset_condition()
         horse.rider.condition = random.randint(c.FINE, c.BAD)
         #field.add_horse(horse)
         horse.set_id(n)
         horses.append(horse)
-    for horse in horses:
-        field.add_horse(horse)
-    return field
+    race = Race(horses, field)
+    return race
 
 def gen_horse_info_json(horse):
     bubble = {"type": "bubble","hero": {"type": "image","url": "https://1.bp.blogspot.com/-2MR7FHzJskw/UnslOIi0O0I/AAAAAAAAaQo/zKKqefuVF0I/s800/eto_uma.png",
@@ -145,49 +153,36 @@ def gen_horse_info_json(horse):
     '''
     return bubble
 
-def gen_horses_info_json(field):
+def gen_horses_info_json(race: Race):
     contents = {
     "type": "carousel",
     "contents": []}
-    for horse in field.lane_info:
+    for horse in race.get_horses():
         contents["contents"].append(gen_horse_info_json(horse))
     return contents
 
 def gen_create_horse_json():
     contents = {"type": "bubble","header": {"type": "box","layout": "vertical","contents": [{"type": "text",
-    "text": "馬が作成されていません\n育成用の馬を作成しますか?", "wrap": True}]},"hero": {"type": "image",
+    "text": "まだ馬を所持していません\n馬を購入しますか?", "wrap": True}]},"hero": {"type": "image",
     "url": "https://1.bp.blogspot.com/-2MR7FHzJskw/UnslOIi0O0I/AAAAAAAAaQo/zKKqefuVF0I/s800/eto_uma.png",
     "aspectMode": "fit"},"footer": {"type": "box","layout": "vertical","contents": [{"type": "button",
-    "action": {"type": "postback","data": "create_horse","label": "新規作成"},"style": "primary"}]}}
+    "action": {"type": "postback","data": "create_horse","label": "新規購入"},"style": "primary"}]}}
     return contents
 
-def make_df(field):
-    rank = start_race_culc_only(field)
+def make_df(race: Race):
+    ranking = race.get_rank()
+    ranking_ai = race.get_pred()
+    print(ranking)
+    field = race.get_field()
     weather = [field.weather for _ in range(field.lane_size)]
     field_type = [field.type for _ in range(field.lane_size)]
-    condition_horse = [n.condition for n in field.lane_info]
-    condition_rider = [n.rider.condition for n in field.lane_info]
-    fine_type = [n.fine_type for n in field.lane_info]
-    skill = [n.skill for n in field.lane_info]
-    speed = [n.stats["speed"] for n in field.lane_info]
-    hp = [n.stats["hp"] for n in field.lane_info]
-    power = [n.stats["power"] for n in field.lane_info]
-    lane = [n for n in range(len(field.lane_info))]
-
-    df = pd.DataFrame({"condition_horse": condition_horse, "condition_rider": condition_rider, \
-                       "fine_type": fine_type, "skill": skill, "speed": speed, "hp": hp, "power": power})
-    bst = lgb.Booster(model_file='keiba_model.txt')
-    y_pred = bst.predict(df, num_iteration=bst.best_iteration)
-    ai = pd.DataFrame({"id": [n for n in range(field.lane_size)],'predict':y_pred})
-    ai = ai.sort_values("predict")
-    rank_ai = [int(n[0]) for n in ai.values.tolist()]
-
-    ranking = [-1 for _ in range(field.lane_size)]
-    ranking_ai = [-1 for _ in range(field.lane_size)]
-    for i, n in enumerate(rank):
-        ranking[n] = i
-    for i, n in enumerate(rank_ai):
-        ranking_ai[n] = i
+    condition_horse = [n.condition for n in race.get_horses()]
+    condition_rider = [n.rider.condition for n in race.get_horses()]
+    fine_type = [n.fine_type for n in race.get_horses()]
+    skill = [n.skill for n in race.get_horses()]
+    speed = [n.stats["speed"] for n in race.get_horses()]
+    hp = [n.stats["hp"] for n in race.get_horses()]
+    power = [n.stats["power"] for n in race.get_horses()]
     df = pd.DataFrame({"Weather": weather, "Field": field_type, "Horse Condition": condition_horse, "Rider Condition": condition_rider\
                     , "Type": fine_type, "Skill": skill, "Speed": speed, "Health": hp, "Power": power, "Rank": ranking, "Predict": ranking_ai})
     return df
@@ -240,7 +235,7 @@ print(createRichmenu())
 
 @app.route("/")
 def hello():
-    return "Sinulist Server Status: ONLINE"
+    return "Keiba Server Status: ONLINE"
 
 @app.route("/img/<string:path>")
 def send_image(path):
@@ -316,6 +311,7 @@ def on_postback(event):
         else:
             line_bot_api.push_message(user_id, FlexSendMessage("馬情報", gen_horse_info_json(horse)))
     elif command == "create_horse":
+        # TODO ERROR HANDRING if User Already has player Horse
         line_bot_api.push_message(user_id, TextSendMessage("名前を送信してください"))
         room.set_status("Create_Room")
         make_pkl(rooms, "pkl/rooms")
@@ -337,16 +333,16 @@ def handle_message(event):
     user_horse = load_horse(id)
     #print(room.get_status())
     if room is not None:
-        field = room.field
+        race = room.race
         print("Room Exists")
     else:
         room = Room(id)
         rooms.append(room)
         make_pkl(rooms, "pkl/rooms")
         print(rooms)
-        field = room.field
+        race = room.race
 
-    df = make_df(field)
+    df = make_df(race)
     df = df.sort_values("Rank")
     #field = create_random_field()
     if room.get_status() == "Create_Room":
@@ -365,18 +361,18 @@ def handle_message(event):
             event.reply_token,
             FlexSendMessage(
                 alt_text='馬情報',
-                contents=gen_horses_info_json(field)
+                contents=gen_horses_info_json(race)
             )
         )
     elif command == "c":
-        field = create_random_field(user_horse)
-        room.set_field(field)
+        race = create_random_race(user_horse)
+        room.set_race(race)
         make_pkl(rooms, "pkl/rooms")
-        df = make_df(room.field)
+        df = make_df(room.race)
         df = df.sort_values("Rank")
         line_bot_api.reply_message(
             event.reply_token,
-            TextSendMessage(f"{df}\n{field.get_horses()}")
+            TextSendMessage(f"{df}")
         )
     elif command == "v":
         url = "https://sclas.xyz:334/img/video.mp4"
@@ -387,5 +383,5 @@ def handle_message(event):
     else:
         line_bot_api.reply_message(
             event.reply_token,
-            TextSendMessage(f"{df}\n{field.get_horses()}")
+            TextSendMessage(f"{df}")
         )

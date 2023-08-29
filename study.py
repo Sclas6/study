@@ -1,16 +1,14 @@
-# ライブラリのインポート
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
-import os
 import random
 import time
 import warnings
 import cv2
-import pickle
 import japanize_matplotlib
 import numpy as np
 import constant as c
+import lightgbm as lgb
 
 WIDTH, HEIGHT = [640, 480]
 
@@ -28,7 +26,6 @@ class Horse:
         self.fine_type = c.GRASS
         self.skill = c.NONE
         self.status = c.RUN
-        self.odds = 1.00
 
     def horse_info(self):
         return {"id":self.id, "name":self.name, "rider":self.rider, "condition":self.condition ,"skill":self.skill, "goodat":self.fine_type}
@@ -51,24 +48,28 @@ class Horse:
     def has_skill(self, skill):
         return True if self.skill == skill else False
 
+    def get_rider(self):
+        return self.rider
+
     def reset_condition(self):
         if self.has_skill(c.STABLE): self.set_condition(c.GOOD)
         else: self.set_condition(random.randint(c.FINE, c.BAD))
 
 class Rider:
-    def __init__(self, id, name):
-        self.id = id
+    def __init__(self, name):
         self.name = name
         self.condition = c.NORMAL
 
     def set_condition(self, con):
         self.condition = con
 
+    def reset_condition(self):
+        self.set_condition(random.randint(c.FINE, c.BAD))
+
 class Field:
     def __init__(self, length, lane_size):
         self.length = length
         self.lane_size = lane_size
-        self.lane_info = []
         self.type = c.GRASS
         self.slope = {0: c.FLAT}
         self.weather = c.CLEAR
@@ -88,14 +89,120 @@ class Field:
             if progress < self.length * a: break
         return f_type
 
-    def add_horse(self, horse):
-        self.lane_info.append(horse)
+
+class Race:
+    def __init__(self, horses, field:Field):
+        self.field = field
+        self.lane_info = horses[:field.lane_size]
+        self.odds = {}
+        for i, horse in enumerate(self.lane_info, 1): 
+            horse.set_id(i)
+            horse.reset_condition()
+            horse.get_rider().reset_condition()
+
+    def get_pred(self):
+        condition_horse = [n.condition for n in self.get_horses()]
+        condition_rider = [n.rider.condition for n in self.get_horses()]
+        fine_type = [n.fine_type for n in self.get_horses()]
+        skill = [n.skill for n in self.get_horses()]
+        speed = [n.stats["speed"] for n in self.get_horses()]
+        hp = [n.stats["hp"] for n in self.get_horses()]
+        power = [n.stats["power"] for n in self.get_horses()]
+
+        df = pd.DataFrame({"condition_horse": condition_horse, "condition_rider": condition_rider, \
+                        "fine_type": fine_type, "skill": skill, "speed": speed, "hp": hp, "power": power})
+        bst = lgb.Booster(model_file='keiba_model.txt')
+        y_pred = bst.predict(df, num_iteration=bst.best_iteration)
+        ai = pd.DataFrame({"id": [n for n in range(self.get_field().lane_size)],'predict':y_pred})
+        ai = ai.sort_values("predict")
+        rank_ai = [int(n[0]) for n in ai.values.tolist()]
+        ranking_ai = [-1 for _ in range(self.get_field().lane_size)]
+        for i, n in enumerate(rank_ai):
+            ranking_ai[n] = i
+        return ranking_ai
+
+    def get_field(self):
+        return self.field
 
     def get_horses(self):
-        horse_list = {}
-        for index, horse in enumerate(self.lane_info, 1):
-            horse_list[f"第{index}レーン"] = horse.name
-        return horse_list
+        return self.lane_info
+
+    def start(self):
+        field = self.get_field()
+        img = plt.imread("static/plane.jpg")
+        fig, ax = plt.subplots()
+        plt.gca().spines["left"].set_visible(False)
+        plt.gca().spines["top"].set_visible(False)
+        plt.gca().spines["right"].set_color("red")
+        plt.gca().spines["right"].set_linewidth(3)
+        fourcc = cv2.VideoWriter_fourcc('m', 'p', '4', 'v')
+        video = cv2.VideoWriter('result/video.mp4',fourcc, 20.0, (WIDTH, HEIGHT + 80))
+        im_slope = gen_image(field.slope, field.length)
+        race_finish = False
+        rank = []
+        length_lest = [field.length for _ in range(field.lane_size)]
+        fix = [1.0 for _ in range(field.lane_size)]
+        past_type = [None for _ in range(field.lane_size)]
+        while(race_finish == False):
+            ax.cla()
+            ax.tick_params(left=False, top=False)
+            ax.set_xlim([0, field.length])
+            ax.set_ylim([0 - 0.5, field.lane_size - 0.5])
+            ax.set_yticks([n for n in range(len(self.get_horses()))])
+            ax.set_yticklabels([n.name for n in self.get_horses()], rotation = 45)
+            print(length_lest)
+            for a in range(field.lane_size):
+                # ゴールしているレーンはスキップ
+                if a not in rank:
+                    if self.get_horses()[a].has_skill(c.ACCELERATION) and past_type[a] == field.get_slope(length_lest[a] + 50):
+                        fix[a] += 0.04
+                        length_lest[a] = int(length_lest[a] - progress(self.get_horses()[a], field, length_lest[a]) * fix[a])
+                    else:
+                        fix[a] = 1.0
+                        length_lest[a] = length_lest[a] - progress(self.get_horses()[a], field, length_lest[a])
+                    past_type[a] = field.get_slope(length_lest[a])
+                # ゴールした時
+                if (length_lest[a] < 0):
+                    if a not in rank :rank.append(a)
+            if np.all(np.array(length_lest) < 0) == True: race_finish = True
+            xlim = ax.get_xlim()
+            ylim = ax.get_ylim()
+            ax.imshow(img, alpha=0.6,extent=[*xlim, *ylim], aspect='auto')
+            imscatter([field.length - n for n in length_lest], [n for n in range(field.lane_size)], "static/horse.png", ax, 0.08)
+            fig.canvas.draw()
+            im = np.array(fig.canvas.renderer.buffer_rgba())
+            im = cv2.cvtColor(im, cv2.COLOR_RGBA2BGR)
+            im = cv2.copyMakeBorder(im, 80, 0, 0, 0, cv2.BORDER_CONSTANT, value=[255,255,255])
+            im[50:150, 0:640] = im_slope
+            #cv2.imshow("test", im)
+            #cv2.waitKey(1)
+            video.write(im)
+        return rank
+
+    def get_rank(self):
+        field = self.get_field()
+        race_finish = False
+        rank = []
+        length_lest = [field.length for _ in range(field.lane_size)]
+        fix = [1.0 for _ in range(field.lane_size)]
+        past_type = [None for _ in range(field.lane_size)]
+        while(race_finish == False):
+            for a in range(field.lane_size):
+                if a not in rank:
+                    if self.get_horses()[a].has_skill(c.ACCELERATION) and past_type[a] == field.get_slope(length_lest[a] + 50):
+                        fix[a] += 0.04
+                        length_lest[a] = int(length_lest[a] - progress(self.get_horses()[a], field, length_lest[a]) * fix[a])
+                    else:
+                        fix[a] = 1.0
+                        length_lest[a] = length_lest[a] - progress(self.get_horses()[a], field, length_lest[a])
+                    past_type[a] = field.get_slope(length_lest[a])
+                if (length_lest[a] < 0):
+                    if a not in rank :rank.append(a)
+            if np.all(np.array(length_lest) < 0) == True: race_finish = True
+        ranking = [-1 for _ in range(field.lane_size)]
+        for i, n in enumerate(rank):
+            ranking[n] = i
+        return ranking
 
 def alart(message):
     print("\033[31m" + message + "\033[0m")
@@ -197,88 +304,6 @@ def progress(horse, field, lest):
             prog = int(random.randint(int(speed/2) - 5, int(speed/2) + 0) * fix)
     return prog
 
-def start_race(field):
-    img = plt.imread("static/plane.jpg")
-    fig, ax = plt.subplots()
-    plt.gca().spines["left"].set_visible(False)
-    plt.gca().spines["top"].set_visible(False)
-    plt.gca().spines["right"].set_color("red")
-    plt.gca().spines["right"].set_linewidth(3)
-    fourcc = cv2.VideoWriter_fourcc('m', 'p', '4', 'v')
-    video = cv2.VideoWriter('result/video.mp4',fourcc, 20.0, (WIDTH, HEIGHT + 80))
-    im_slope = gen_image(field.slope, field.length)
-    race_finish = False
-    rank = []
-    length_lest = [field.length for _ in range(field.lane_size)]
-    fix = [1.0 for _ in range(field.lane_size)]
-    past_type = [None for _ in range(field.lane_size)]
-    while(race_finish == False):
-        ax.cla()
-        ax.tick_params(left=False, top=False)
-        ax.set_xlim([0, field.length])
-        ax.set_ylim([0 - 0.5, field.lane_size - 0.5])
-        ax.set_yticks([n for n in range(len(field.lane_info))])
-        ax.set_yticklabels([n.name for n in field.lane_info], rotation = 45)
-        for a in range(field.lane_size):
-            # ゴールしているレーンはスキップ
-            if a not in rank:
-                if field.lane_info[a].has_skill(c.ACCELERATION) and past_type[a] == field.get_slope(length_lest[a] + 50):
-                    fix[a] += 0.04
-                    length_lest[a] = int(length_lest[a] - progress(field.lane_info[a], field, length_lest[a]) * fix[a])
-                else:
-                    fix[a] = 1.0
-                    length_lest[a] = length_lest[a] - progress(field.lane_info[a], field, length_lest[a])
-                past_type[a] = field.get_slope(length_lest[a])
-            # ゴールした時
-            if (length_lest[a] < 0):
-                if a not in rank :rank.append(a)
-        if np.all(np.array(length_lest) < 0) == True: race_finish = True
-        xlim = ax.get_xlim()
-        ylim = ax.get_ylim()
-        ax.imshow(img, alpha=0.6,extent=[*xlim, *ylim], aspect='auto')
-        imscatter([field.length - n for n in length_lest], [n for n in range(field.lane_size)], "static/horse.png", ax, 0.08)
-        fig.canvas.draw()
-        im = np.array(fig.canvas.renderer.buffer_rgba())
-        im = cv2.cvtColor(im, cv2.COLOR_RGBA2BGR)
-        im = cv2.copyMakeBorder(im, 80, 0, 0, 0, cv2.BORDER_CONSTANT, value=[255,255,255])
-        im[50:150, 0:640] = im_slope
-        cv2.imshow("test", im)
-        cv2.waitKey(1)
-        #video.write(im)
-    return rank
-
-def start_race_culc_only(field):
-    race_finish = False
-    rank = []
-    length_lest = [field.length for _ in range(field.lane_size)]
-    fix = [1.0 for _ in range(field.lane_size)]
-    past_type = [None for _ in range(field.lane_size)]
-    while(race_finish == False):
-        for a in range(field.lane_size):
-            if a not in rank:
-                if field.lane_info[a].has_skill(c.ACCELERATION) and past_type[a] == field.get_slope(length_lest[a] + 50):
-                    fix[a] += 0.04
-                    length_lest[a] = int(length_lest[a] - progress(field.lane_info[a], field, length_lest[a]) * fix[a])
-                else:
-                    fix[a] = 1.0
-                    length_lest[a] = length_lest[a] - progress(field.lane_info[a], field, length_lest[a])
-                past_type[a] = field.get_slope(length_lest[a])
-            if (length_lest[a] < 0):
-                if a not in rank :rank.append(a)
-        if np.all(np.array(length_lest) < 0) == True: race_finish = True
-    return rank
-
-def load_horse(name):
-    ans = None
-    if os.path.exists(f"pkl/horses/{name}.pkl"):
-        with open(f"pkl/horses/{name}.pkl", "rb") as f:
-            ans = pickle.load(f)
-    return ans
-
-def create_horse(name, horse: Horse):
-    with open(f"pkl/horses/{name}.pkl", "wb") as f:
-        pickle.dump(horse, f)
-
 def main():
 
     field = Field(2000, 3)
@@ -294,9 +319,8 @@ def main():
         horses.append(Horse(horse_name[n]))
 
     for n in range(len(rider_name)):
-        riders.append(Rider(n, rider_name[n]))
+        riders.append(Rider(rider_name[n]))
 
-    #horses.insert(0, load_horse("sana"))
     horses = horses[:field.lane_size]
 
     for rider in riders:
@@ -312,7 +336,8 @@ def main():
     random.shuffle(riders)
     for n in range(field.lane_size):
         horses[n].set_rider(riders[n])
-        field.add_horse(horses[n])
+
+    race = Race(horses, field)
 
     while True:
         try:
@@ -324,7 +349,7 @@ def main():
             alart("所持金は整数値である必要があります")
 
     print("--出馬表を表示します--")
-    for i, horse in enumerate(field.lane_info):
+    for i, horse in enumerate(race.get_horses()):
         info = horse.horse_info()
         print(f"lane{i + 1}: {info.get('id')} {info.get('name')}, Condition: {c.CONDITIONS[info.get('condition')]}, Skill: {c.SKILLS[info.get('skill')]} ")
     print("----------------------\n")
@@ -342,7 +367,7 @@ def main():
     while True:
         try:
             predict = int(input("馬番号: "))
-            if predict not in [n.id for n in field.lane_info]:
+            if predict not in [n.id for n in race.get_horses()]:
                 alart("入力された馬番号は存在しません")
             else: break
         except:
@@ -361,16 +386,16 @@ def main():
     print("")
 
     print("レースを開始します")
-    rank = start_race(field)
+    rank = race.get_rank()
     #rank = start_race_culc_only(field)
     print("--レース結果--")
     print(rank)
     for i, n in enumerate(rank, 1):
-        print(f"{i}着: {field.lane_info[n].id} {field.lane_info[n].name}")
+        print(f"{i}着: {race.get_horses()[n].id} {race.get_horses()[n].name}")
     print("--------------")
 
     # 金額変動を判定する
-    if predict == field.lane_info[rank[0]].id:
+    if predict == race.get_horses()[rank[0]].id:
         money = int(money + stakes*odds[rank[0]])
     print("結果: "+str(start_money)+" → "+str(money))
 
