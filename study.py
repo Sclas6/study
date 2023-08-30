@@ -89,18 +89,17 @@ class Field:
             if progress < self.length * a: break
         return f_type
 
-
 class Race:
     def __init__(self, horses, field:Field):
         self.field = field
         self.lane_info = horses[:field.lane_size]
-        self.odds = {}
+        self.odds = []
         for i, horse in enumerate(self.lane_info, 1): 
             horse.set_id(i)
             horse.reset_condition()
             horse.get_rider().reset_condition()
 
-    def get_pred(self):
+    def ai_culc(self):
         condition_horse = [n.condition for n in self.get_horses()]
         condition_rider = [n.rider.condition for n in self.get_horses()]
         fine_type = [n.fine_type for n in self.get_horses()]
@@ -114,12 +113,25 @@ class Race:
         bst = lgb.Booster(model_file='keiba_model.txt')
         y_pred = bst.predict(df, num_iteration=bst.best_iteration)
         ai = pd.DataFrame({"id": [n for n in range(self.get_field().lane_size)],'predict':y_pred})
+        #print(ai)
+        odds = [n[1] for n in ai.values.tolist()]
         ai = ai.sort_values("predict")
         rank_ai = [int(n[0]) for n in ai.values.tolist()]
-        ranking_ai = [-1 for _ in range(self.get_field().lane_size)]
-        for i, n in enumerate(rank_ai):
-            ranking_ai[n] = i
-        return ranking_ai
+        #print(odds)
+        return rank_ai, odds
+
+    def get_pred(self):
+        pred, _ = self.ai_culc()
+        ranking = [-1 for _ in range(self.get_field().lane_size)]
+        for i, n in enumerate(pred):
+            ranking[n] = i
+        return ranking
+
+    def get_odds(self):
+        _, tmp = self.ai_culc()
+        odds = np.array(tmp)
+        odds -= np.amin(odds) - random.uniform(1.0, 1.5)
+        return [round(n, 2) for n in odds.tolist()]
 
     def get_field(self):
         return self.field
@@ -177,7 +189,10 @@ class Race:
             #cv2.imshow("test", im)
             #cv2.waitKey(1)
             video.write(im)
-        return rank
+        ranking = [-1 for _ in range(field.lane_size)]
+        for i, n in enumerate(rank):
+            ranking[n] = i
+        return ranking
 
     def get_rank(self):
         field = self.get_field()

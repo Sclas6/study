@@ -1,8 +1,10 @@
 from flask import *
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
-from linebot.models import MessageEvent, TextMessage, TextSendMessage, JoinEvent, FlexSendMessage, ImageSendMessage, VideoSendMessage
-from linebot.models import RichMenu, RichMenuArea, RichMenuBounds, RichMenuSize, MessageAction, PostbackAction, PostbackEvent
+from linebot.models import TextMessage, TextSendMessage, FlexSendMessage, ImageSendMessage, VideoSendMessage
+from linebot.models import RichMenu, RichMenuArea, RichMenuBounds, RichMenuSize
+from linebot.models import MessageEvent, JoinEvent, PostbackEvent, LeaveEvent, FollowEvent, UnfollowEvent
+from linebot.models import MessageAction, PostbackAction
 import os
 import pickle
 import unicodedata
@@ -13,11 +15,18 @@ from sec import *
 class Room:
     def __init__(self, id):
         self.id = id
+        self.gold = 100000
         self.race = create_random_race(None)
         self.status = None
 
     def set_race(self, race: Race):
         self.race = race
+
+    def set_gold(self, gold):
+        self.gold = gold
+
+    def get_gold(self):
+        return self.gold
 
     def get_race(self):
         return self.race
@@ -47,6 +56,7 @@ def load_rooms():
     if os.path.exists("pkl/rooms.pkl"):
         with open("pkl/rooms.pkl", "rb") as f:
             rooms = pickle.load(f)
+    return rooms
 
 def load_horse(name):
     ans = None
@@ -59,7 +69,7 @@ def create_horse(name, horse: Horse):
     with open(f"pkl/horses/{name}.pkl", "wb") as f:
         pickle.dump(horse, f)
 
-def make_pkl(var, name):
+def save_pkl(var, name):
     with open(f"{name}.pkl", "wb") as f:
         pickle.dump(var, f)
 
@@ -100,30 +110,32 @@ def create_random_race(user_horse):
         else:
             horse = Horse(f"{n}")
             horse.skill = random.randint(c.STABLE, c.NONE)
+            #horse.skill = c.NONE
             horse.stats["speed"] = random.randint(10, 100)
             horse.stats["hp"] = random.randint(10, 100)
             horse.stats["power"] = random.randint(10, 100)
             horse.fine_type = random.randint(c.GRASS, c.DURT)
         horse.set_rider(Rider(f"n"))
-        horse.reset_condition()
-        horse.rider.condition = random.randint(c.FINE, c.BAD)
         #field.add_horse(horse)
         horse.set_id(n)
         horses.append(horse)
     race = Race(horses, field)
     return race
 
-def gen_horse_info_json(horse):
+def gen_horse_info_json(horse, odds):
     bubble = {"type": "bubble","hero": {"type": "image","url": "https://1.bp.blogspot.com/-2MR7FHzJskw/UnslOIi0O0I/AAAAAAAAaQo/zKKqefuVF0I/s800/eto_uma.png",
     "aspectMode": "fit"},"body": {"type": "box","layout": "horizontal","contents": [{"type": "box","layout": "vertical","contents": [{"type": "text",
     # Label
-    "text": "馬名:\n\n速度:\n体力:\nスタミナ:\nスキル:",
+    "text": "馬名:\nオッズ:\n\n速度:\n体力:\nスタミナ:\nスキル:",
     "wrap": True,"align": "start"}
     
     ]},{"type": "box","layout": "vertical","contents": [
         {"type": "box","layout": "baseline","contents": [{"type": "text",
     # Data
-    "text": f"{horse.name}　\n","wrap":True}]},
+    "text": f"{horse.name}　","wrap":True}]},
+    {"type": "box","layout": "baseline","contents": [{"type": "text",
+    # Data
+    "text": f"{odds}\n　","wrap":True}]},
     {"type": "box","layout": "baseline","contents": [
     # Icon
     {"type": "icon", "url": get_icon(horse.stats['speed']), "offsetTop": "2px"},
@@ -157,8 +169,8 @@ def gen_horses_info_json(race: Race):
     contents = {
     "type": "carousel",
     "contents": []}
-    for horse in race.get_horses():
-        contents["contents"].append(gen_horse_info_json(horse))
+    for i, horse in enumerate(race.get_horses()):
+        contents["contents"].append(gen_horse_info_json(horse, race.get_odds()[i]))
     return contents
 
 def gen_create_horse_json():
@@ -171,7 +183,13 @@ def gen_create_horse_json():
 
 def make_df(race: Race):
     ranking = race.get_rank()
-    ranking_ai = race.get_pred()
+    rank_ai = race.get_pred()
+    odds = race.get_odds()
+    '''
+    ranking_ai = [-1 for _ in range(race.get_field().lane_size)]
+    for i, n in enumerate(rank_ai):
+        ranking_ai[n] = i
+    '''
     print(ranking)
     field = race.get_field()
     weather = [field.weather for _ in range(field.lane_size)]
@@ -184,7 +202,7 @@ def make_df(race: Race):
     hp = [n.stats["hp"] for n in race.get_horses()]
     power = [n.stats["power"] for n in race.get_horses()]
     df = pd.DataFrame({"Weather": weather, "Field": field_type, "Horse Condition": condition_horse, "Rider Condition": condition_rider\
-                    , "Type": fine_type, "Skill": skill, "Speed": speed, "Health": hp, "Power": power, "Rank": ranking, "Predict": ranking_ai})
+                    , "Type": fine_type, "Skill": skill, "Speed": speed, "Health": hp, "Power": power, "Rank": ranking, "Predict": rank_ai, "Odds": odds})
     return df
 
 def createRichmenu():
@@ -289,10 +307,49 @@ def callback():
 
 @handler.add(JoinEvent)
 def join_event(event):
+    group_id = event.source.group_id
+    global rooms
+    load_rooms()
+    room = Room(group_id)
+    rooms.append(room)
+    save_pkl(rooms, "pkl/rooms")
+    print(rooms)
     str_join = 'keiba bot desu'
     line_bot_api.reply_message(
         event.reply_token,
         TextSendMessage(str_join))
+
+@handler.add(FollowEvent)
+def leave_event(event):
+    user_id = event.source.user_id
+    global rooms
+    load_rooms()
+    room = Room(user_id)
+    rooms.append(room)
+    save_pkl(rooms, "pkl/rooms")
+    print(rooms)
+
+@handler.add(LeaveEvent)
+def leave_event(event):
+    group_id = event.source.group_id
+    global rooms
+    load_rooms()
+    for n in rooms:
+        if n.id == group_id:
+            rooms.remove(n)
+    save_pkl(rooms, "pkl/rooms")
+    print(rooms)
+
+@handler.add(UnfollowEvent)
+def leave_event(event):
+    user_id = event.source.user_id
+    global rooms
+    load_rooms()
+    for n in rooms:
+        if n.id == user_id:
+            rooms.remove(n)
+    save_pkl(rooms, "pkl/rooms")
+    print(rooms)
 
 @handler.add(PostbackEvent)
 def on_postback(event):
@@ -314,33 +371,27 @@ def on_postback(event):
         # TODO ERROR HANDRING if User Already has player Horse
         line_bot_api.push_message(user_id, TextSendMessage("名前を送信してください"))
         room.set_status("Create_Room")
-        make_pkl(rooms, "pkl/rooms")
+        save_pkl(rooms, "pkl/rooms")
 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     global rooms
     load_rooms()
+    print(rooms)
     linelist = event.message.text
     try:
         command, token = linelist.split()
         print(f"{command}, {token}")
     except: command, token = [linelist, None]
-    try :
+    try:
         id = event.source.group_id
     except:
         id = event.source.user_id
     room = serach_room(id)
     user_horse = load_horse(id)
+    print(room)
+    race = room.race
     #print(room.get_status())
-    if room is not None:
-        race = room.race
-        print("Room Exists")
-    else:
-        room = Room(id)
-        rooms.append(room)
-        make_pkl(rooms, "pkl/rooms")
-        print(rooms)
-        race = room.race
 
     df = make_df(race)
     df = df.sort_values("Rank")
@@ -351,7 +402,7 @@ def handle_message(event):
             horse.set_skill(c.NONE)
             create_horse(id, horse)
             room.set_status(None)
-            make_pkl(rooms, "pkl/rooms")
+            save_pkl(rooms, "pkl/rooms")
             line_bot_api.push_message(id, TextSendMessage("馬を作成しました!"))
             line_bot_api.push_message(id, FlexSendMessage("馬情報", gen_horse_info_json(horse)))
         else: line_bot_api.push_message(id, TextSendMessage("名前は半角文字の12字以内である必要があります"))
@@ -367,7 +418,7 @@ def handle_message(event):
     elif command == "c":
         race = create_random_race(user_horse)
         room.set_race(race)
-        make_pkl(rooms, "pkl/rooms")
+        save_pkl(rooms, "pkl/rooms")
         df = make_df(room.race)
         df = df.sort_values("Rank")
         line_bot_api.reply_message(
