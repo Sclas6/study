@@ -9,6 +9,8 @@ import japanize_matplotlib
 import numpy as np
 import constant as c
 import lightgbm as lgb
+import os
+import shutil
 
 WIDTH, HEIGHT = [640, 480]
 
@@ -88,6 +90,18 @@ class Field:
                 f_type = self.slope[a]
             if progress < self.length * a: break
         return f_type
+
+    def gen_slope_image(self):
+        im = gen_image(self.slope, self.length)
+        dir = 'result/slope/'
+        im_name = str(time.time()).replace('.', '').ljust(17, '0')
+        path = f"{dir}{im_name}.jpg"
+        cv2.imwrite(path, im)
+        files = os.listdir("result/slope")
+        for i, file in enumerate(sorted(files, reverse = True)):
+            if i >= 10: os.remove(f"{dir}{file}")
+        url = f"https://sclas.xyz:334/img/slope/{im_name}.jpg"
+        return url
 
 class Race:
     def __init__(self, horses, field:Field):

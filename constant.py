@@ -1,11 +1,11 @@
 # Weather
-WEATHER = ["CLEAR", "CLOUDY", "RAIN"]
+WEATHER = ["晴れ", "曇り", "雨"]
 CLEAR = 0
 CLOUDY = 1
 RAIN = 2
 
 # Field
-FIELD = ["GRASS", "DURT"]
+FIELD = ["芝", "ダート"]
 GRASS = 0
 DURT = 1
 

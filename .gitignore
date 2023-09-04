@@ -1,9 +1,9 @@
 .venv/
 .vscode/
 __pycache__/
+result/
+pkl/
 *.exe
-*.pkl
-video.mp4
 test.py
 sec.py
 settings.py
