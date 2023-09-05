@@ -320,19 +320,20 @@ def on_postback(event):
     elif re.match("^buy_\d_", command) is not None:
         result = re.findall("\d+", command)
         if len(result) == 2: horse_id, n = [int(n) for n in result]
-        else: 
+        else:
             horse_id = int(result[0])
             n = int(user.gold / 100)
         print((horse_id, n))
-        if user.gold < n * 100:
-            line_bot_api.push_message(user_id, TextSendMessage(f"所持金{user.gold}円を上回っています!"))
+        if user.gold < n * 100 or n == 0:
+            line_bot_api.push_message(user_id, TextSendMessage(f"所持金{user.gold}Gを上回っています!"))
         else:
             if horse_id in user.tickets: user.tickets[horse_id] += n
             else: user.tickets[horse_id] = n
-            user.gold -= n * 100
-            save_pkl(users, "pkl/users")
             print(user.tickets)
             print(user.gold)
+            user.gold -= n * 100
+            line_bot_api.push_message(to = user_id, messages = FlexSendMessage("購入馬券", gen_receipt(user.tickets, user.gold)))
+            save_pkl(users, "pkl/users")
 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
@@ -398,6 +399,10 @@ def handle_message(event):
         ))
     elif command == "battle":
         pass
+    elif command == "reset":
+        room.tickets = {}
+        room.gold = 100000
+        save_pkl(users, "pkl/users")
     else:
         line_bot_api.reply_message(
             event.reply_token,

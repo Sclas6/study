@@ -107,7 +107,7 @@ class Race:
     def __init__(self, horses, field:Field):
         self.field = field
         self.lane_info = horses[:field.lane_size]
-        self.odds = []
+        self.odds = self.get_odds()
         for i, horse in enumerate(self.lane_info, 1): 
             horse.set_id(i)
             horse.reset_condition()

@@ -1,3 +1,4 @@
+import datetime
 from study import Horse, Field, Race
 import constant as c
 
@@ -33,7 +34,7 @@ def gen_horse_info_json(horse: Horse, odds):
     if odds is not None:
         bubble["body"]["contents"].append(    {"type": "box","layout": "baseline","contents": [
         {"type": "text","text": "オッズ","flex": 1},{"type": "text","text": f"{odds}"}]})
-    bubble["body"]["contents"].append(    {"type": "separator","color": "#FFFFFFFF","margin": "xxl"})
+    bubble["body"]["contents"].append(    {"type": "separator","color": "#FFFFFF00","margin": "xxl"})
     bubble["body"]["contents"].append(    {"type": "box","layout": "baseline","contents": [
     {"type": "text","text": "速度:","flex": 1},
     {"type": "icon","url": get_icon(horse.stats['speed']),"offsetTop": "2px","margin": "15px"},
@@ -68,9 +69,9 @@ def gen_buy_ticket_json(race: Race):
         contents["contents"].append(gen_horse_info_json(horse, race.get_odds()[i]))
         contents["contents"][i]["footer"] = {"type":"box","layout":"vertical","spacing":"sm",
         "contents":[{"type":"box","layout":"horizontal","contents":[{"type":"button","action":{"type":"postback",
-        "label":"1枚","data":f"buy_{i + 1}_1"},"style":"primary"},{"type":"separator","margin":"5px"},
+        "label":"1枚","data":f"buy_{i + 1}_1"},"style":"primary"},{"type":"separator","margin":"5px", "color": "#FFFFFF00"},
         {"type":"button","action":{"type":"postback","label":"10枚","data":f"buy_{i + 1}_10"},"style":"primary"},
-        {"type":"separator","margin":"5px"},{"type":"button","action":{"type":"postback","label":"50枚",
+        {"type":"separator","margin":"5px", "color": "#FFFFFF00"},{"type":"button","action":{"type":"postback","label":"50枚",
         "data":f"buy_{i + 1}_50"},"style":"primary"}],"margin":"sm"},{"type":"box","layout":"vertical",
         "contents":[]},{"type":"button","action":{"type":"postback","data":f"buy_{i + 1}_all","label":"買えるだけ"},
         "style":"primary"}],"flex":0}
@@ -98,7 +99,469 @@ def gen_field_info_json(field: Field):
     "color":"#aaaaaa","align":"center"},{"type":"image","aspectMode":"cover","size":"full","aspectRatio":"480:100",
     "url":field.gen_slope_image()}]}]},"footer":{"type":"box","layout":"vertical",
     "spacing":"sm","contents":[{"type":"button","style":"primary","height":"sm",
-    "action":{"type":"postback","label":"馬券購入へ(1口100円)","data":"buy_ticket"}}],"flex":0}}
+    "action":{"type":"postback","label":"馬券購入へ(1口100G)","data":"buy_ticket"}}],"flex":0}}
+    return contents
+
+def gen_receipt(tickets: dict, gold):
+    gold_sum = sum([100 * n for n in tickets.values()])
+    now = datetime.datetime.now()
+    contents ={
+  "type": "bubble",
+  "body": {
+    "type": "box",
+    "layout": "vertical",
+    "contents": [
+      {
+        "type": "text",
+        "text": "ご来場いただきありがとうございます\n最後のレースまでお楽しみください",
+        "align": "center",
+        "size": "xs",
+        "wrap": True
+      },
+      {
+        "type": "box",
+        "layout": "horizontal",
+        "contents": [
+          {
+            "type": "box",
+            "layout": "baseline",
+            "contents": [
+              {
+                "type": "text",
+                "text": "■",
+                "gravity": "center",
+                "size": "sm",
+                "align": "end"
+              },
+              {
+                "type": "text",
+                "text": "□",
+                "gravity": "center",
+                "size": "xl",
+                "offsetTop": "3px"
+              },
+              {
+                "type": "text",
+                "text": "■",
+                "gravity": "center",
+                "size": "sm",
+                "align": "start"
+              }
+            ],
+            "offsetTop": "7px",
+            "width": "65px"
+          },
+          {
+            "type": "text",
+            "text": "ご利用明細",
+            "align": "center",
+            "gravity": "center",
+            "size": "xl",
+            "weight": "bold",
+            "offsetTop": "1px"
+          },
+          {
+            "type": "box",
+            "layout": "baseline",
+            "contents": [
+              {
+                "type": "text",
+                "text": "■",
+                "gravity": "center",
+                "size": "sm",
+                "align": "end"
+              },
+              {
+                "type": "text",
+                "text": "□",
+                "gravity": "center",
+                "size": "xl",
+                "offsetTop": "3px"
+              },
+              {
+                "type": "text",
+                "text": "■",
+                "gravity": "center",
+                "size": "sm",
+                "align": "start"
+              }
+            ],
+            "offsetTop": "7px",
+            "width": "65px"
+          }
+        ],
+        "height": "50px"
+      },
+      {
+        "type": "box",
+        "layout": "horizontal",
+        "contents": [
+          {
+            "type": "box",
+            "layout": "vertical",
+            "contents": [
+              {
+                "type": "text",
+                "text": f"{now.strftime('%Y年%m月%d日')}",
+                "size": "xs"
+              },
+              {
+                "type": "separator",
+                "color": "#FFFFFF00",
+                "margin": "lg"
+              },
+              {
+                "type": "text",
+                "text": "京都",
+                "size": "md",
+                "weight": "bold"
+              },
+              {
+                "type": "box",
+                "layout": "horizontal",
+                "contents": [
+                  {
+                    "type": "box",
+                    "layout": "vertical",
+                    "contents": [
+                      {
+                        "type": "text",
+                        "text": "11",
+                        "align": "center",
+                        "weight": "bold",
+                        "color": "#FFFFFF"
+                      }
+                    ],
+                    "backgroundColor": "#000000",
+                    "width": "35px",
+                    "justifyContent": "center"
+                  },
+                  {
+                    "type": "text",
+                    "text": "レース",
+                    "align": "start"
+                  }
+                ]
+              }
+            ],
+            "width": "100px"
+          },
+          {
+            "type": "box",
+            "layout": "vertical",
+            "contents": [
+              {
+                "type": "box",
+                "layout": "horizontal",
+                "contents": [
+                  {
+                    "type": "box",
+                    "layout": "horizontal",
+                    "contents": [
+                      {
+                        "type": "box",
+                        "layout": "vertical",
+                        "contents": [
+                          {
+                            "type": "text",
+                            "text": "WIN",
+                            "align": "center",
+                            "size": "xxs"
+                          },
+                          {
+                            "type": "text",
+                            "text": "単\n　\n勝",
+                            "wrap": True,
+                            "align": "center",
+                            "size": "xl",
+                            "margin": "md"
+                          },
+                          {
+                            "type": "text",
+                            "text": "WIN",
+                            "align": "center",
+                            "size": "xxs",
+                            "margin": "md"
+                          }
+                        ],
+                        "borderColor": "#000000",
+                        "borderWidth": "normal",
+                        "width": "35px"
+                      }
+                    ],
+                    "width": "35px",
+                    "justifyContent": "center",
+                    "alignItems": "center"
+                  },
+                  {
+                    "type": "box",
+                    "layout": "vertical",
+                    "contents": [
+                        # Tickets
+                    ],
+                    "justifyContent": "center"
+                  }
+                ]
+              },
+              {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                  {
+                    "type": "box",
+                    "layout": "horizontal",
+                    "contents": [
+                      {
+                        "type": "text",
+                        "text": "合計",
+                        "size": "xs"
+                      },
+                      {
+                        "type": "box",
+                        "layout": "vertical",
+                        "contents": [
+                          {
+                            "type": "text",
+                            "size": "xxs",
+                            "margin": "none",
+                            "text": "★"
+                          }
+                        ],
+                        "width": "12px"
+                      },
+                      {
+                        "type": "box",
+                        "layout": "vertical",
+                        "contents": [
+                          {
+                            "type": "text",
+                            "size": "xxs",
+                            "margin": "none",
+                            "text": "★"
+                          }
+                        ],
+                        "width": "12px"
+                      },
+                      {
+                        "type": "box",
+                        "layout": "vertical",
+                        "contents": [
+                          {
+                            "type": "text",
+                            "size": "xxs",
+                            "margin": "none",
+                            "text": "★"
+                          }
+                        ],
+                        "width": "12px"
+                      },
+                      {
+                        "type": "box",
+                        "layout": "vertical",
+                        "contents": [
+                          {
+                            "type": "text",
+                            "size": "xxs",
+                            "margin": "none",
+                            "text": "★"
+                          }
+                        ],
+                        "width": "12px"
+                      },
+                      {
+                        "type": "box",
+                        "layout": "vertical",
+                        "contents": [
+                          {
+                            "type": "text",
+                            "text": f"{gold_sum}G",
+                            "size": "xs"
+                          }
+                        ],
+                        "width": "65px",
+                        "alignItems": "flex-end",
+                        "justifyContent": "flex-end"
+                      }
+                    ],
+                    "alignItems": "center",
+                    "justifyContent": "flex-end",
+                    "offsetTop": "4px"
+                  },
+                  {
+                    "type": "separator",
+                    "color": "#FFFFFF00",
+                    "margin": "md"
+                  },
+                  {
+                    "type": "text",
+                    "text": f"{now.strftime('%Y/%m/%d %H:%M:%S')}",
+                    "size": "xs"
+                  }
+                ],
+                "alignItems": "flex-end"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "box",
+        "layout": "baseline",
+        "contents": [
+          {
+            "type": "text",
+            "text": "残高:",
+            "flex": 1,
+            "size": "xs",
+            "align": "center"
+          },
+          {
+            "type": "text",
+            "text": f"{gold}G",
+            "size": "xs",
+            "align": "center"
+          }
+        ],
+        "borderWidth": "normal",
+        "borderColor": "#000000",
+        "width": "180px",
+        "offsetTop": "8px"
+      }
+    ],
+    "alignItems": "center"
+  },
+  "footer": {
+    "type": "box",
+    "layout": "vertical",
+    "contents": [
+      {
+        "type": "separator",
+        "margin": "xxl",
+        "color": "#FFFFFF00"
+      },
+      {
+        "type": "box",
+        "layout": "horizontal",
+        "contents": [
+          {
+            "type": "button",
+            "action": {
+              "type": "postback",
+              "label": "確定",
+              "data": "buy_end"
+            },
+            "style": "primary"
+          },
+          {
+            "type": "separator",
+            "margin": "md",
+            "color": "#FFFFFF00"
+          },
+          {
+            "type": "button",
+            "action": {
+              "type": "postback",
+              "label": "追加購入",
+              "data": "buy_ticket"
+            },
+            "style": "secondary"
+          }
+        ]
+      }
+    ]
+  }
+}
+    for horse_id in tickets:
+        contents["body"]["contents"][2]["contents"][1]["contents"][0]["contents"][1]["contents"].append(
+{
+                        "type": "box",
+                        "layout": "horizontal",
+                        "contents": [
+                          {
+                            "type": "box",
+                            "layout": "vertical",
+                            "contents": [
+                              {
+                                "type": "text",
+                                "text": f"{horse_id}",
+                                "weight": "bold",
+                                "size": "lg",
+                                "gravity": "center",
+                                "align": "center",
+                                "offsetBottom": "3px"
+                              }
+                            ],
+                            "borderColor": "#000000",
+                            "borderWidth": "normal",
+                            "width": "30px",
+                            "height": "22px",
+                            "offsetStart": "3px",
+                            "justifyContent": "center"
+                          },
+                          {
+                            "type": "box",
+                            "layout": "horizontal",
+                            "contents": [
+                              {
+                                "type": "box",
+                                "layout": "vertical",
+                                "contents": [
+                                  {
+                                    "type": "box",
+                                    "layout": "horizontal",
+                                    "contents": [
+                                      {
+                                        "type": "box",
+                                        "layout": "vertical",
+                                        "contents": [
+                                          {
+                                            "type": "text",
+                                            "size": "xxs",
+                                            "margin": "none",
+                                            "text": f"{''.join(['☆' for _ in range(6 - len(str(tickets[horse_id] * 100)))]) if len(str(tickets[horse_id] * 100)) <= 5 else ' '}"
+                                          }
+                                        ],
+                                        "width": f"{12 * (6 - len(str(tickets[horse_id] * 100))) if len(str(tickets[horse_id] * 100)) <= 5 else 0}px"
+                                      },
+                                      {
+                                        "type": "text",
+                                        "text": f"{tickets[horse_id] * 100}",
+                                        "size": "xl",
+                                        "align": "start",
+                                        "gravity": "center",
+                                        "offsetEnd": "2px"
+                                      }
+                                    ],
+                                    "alignItems": "center",
+                                    "offsetStart": "12px"
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "box",
+                                "layout": "vertical",
+                                "contents": [
+                                  {
+                                    "type": "text",
+                                    "text": "G",
+                                    "gravity": "bottom",
+                                    "size": "xs",
+                                    "align": "start",
+                                    "offsetTop": "2px"
+                                  }
+                                ],
+                                "width": "10px",
+                                "justifyContent": "center"
+                              }
+                            ],
+                            "justifyContent": "flex-start",
+                            "alignItems": "center"
+                          }
+                        ],
+                        "justifyContent": "center",
+                        "alignItems": "center"
+                      }
+    )
     return contents
 
 def gen_group_battle_start_json():
