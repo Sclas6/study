@@ -113,9 +113,9 @@ def gen_receipt(tickets: dict, gold):
     "contents": [
       {
         "type": "text",
-        "text": "ご来場いただきありがとうございます\n最後のレースまでお楽しみください",
+        "text": "◆◇◆ご来場いただきありがとうございます◆◇◆\n最後のレースまでお楽しみください",
         "align": "center",
-        "size": "xs",
+        "size": "xxs",
         "wrap": True
       },
       {
@@ -406,7 +406,7 @@ def gen_receipt(tickets: dict, gold):
       },
       {
         "type": "box",
-        "layout": "baseline",
+        "layout": "horizontal",
         "contents": [
           {
             "type": "text",
@@ -425,7 +425,8 @@ def gen_receipt(tickets: dict, gold):
         "borderWidth": "normal",
         "borderColor": "#000000",
         "width": "180px",
-        "offsetTop": "8px"
+        "offsetTop": "8px",
+        "alignItems": "center"
       }
     ],
     "alignItems": "center"
@@ -563,6 +564,10 @@ def gen_receipt(tickets: dict, gold):
                       }
     )
     return contents
+
+def gen_retry_json():
+    return {"type":"bubble","body":{"type":"box","layout":"vertical","contents":[{"type":"text","text":"レース中です。\n暫くお待ちください。","wrap":True}]},"footer":{"type":"box","layout":"vertical","contents":[{"type":"button","action":{"type":"postback","label":"リトライ","data":"buy_end"},"style":"secondary"}]}}
+    
 
 def gen_group_battle_start_json():
     pass

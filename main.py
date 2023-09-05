@@ -5,6 +5,7 @@ from linebot.models import TextMessage, TextSendMessage, FlexSendMessage, ImageS
 from linebot.models import RichMenu, RichMenuArea, RichMenuBounds, RichMenuSize
 from linebot.models import MessageEvent, JoinEvent, PostbackEvent, LeaveEvent, FollowEvent, UnfollowEvent
 from linebot.models import MessageAction, PostbackAction
+from concurrent.futures import ThreadPoolExecutor
 import os
 import pandas as pd
 import pickle
@@ -92,9 +93,9 @@ def create_random_race(user_horse):
             horse = Horse(f"{n}")
             horse.skill = random.randint(c.STABLE, c.NONE)
             #horse.skill = c.NONE
-            horse.stats["speed"] = random.randint(10, 100)
-            horse.stats["hp"] = random.randint(10, 100)
-            horse.stats["power"] = random.randint(10, 100)
+            horse.stats["speed"] = random.randint(35, 100)
+            horse.stats["hp"] = random.randint(35, 100)
+            horse.stats["power"] = random.randint(35, 100)
             horse.fine_type = random.randint(c.GRASS, c.DURT)
         horse.set_rider(Rider(f"n"))
         #field.add_horse(horse)
@@ -315,6 +316,9 @@ def on_postback(event):
         user.race = create_random_race(user_horse)
         save_pkl(users, "pkl/users")
         line_bot_api.push_message(to = user_id, messages = FlexSendMessage("馬場情報", gen_field_info_json(user.race.field)))
+        user.race.start()
+        print(user.race.url)
+        save_pkl(users, "pkl/users")
     elif command == "buy_ticket":
         line_bot_api.push_message(to = user_id, messages = FlexSendMessage("馬券購入", gen_buy_ticket_json(user.race)))
     elif re.match("^buy_\d_", command) is not None:
@@ -334,6 +338,16 @@ def on_postback(event):
             user.gold -= n * 100
             line_bot_api.push_message(to = user_id, messages = FlexSendMessage("購入馬券", gen_receipt(user.tickets, user.gold)))
             save_pkl(users, "pkl/users")
+    elif command == "buy_end":
+        if user.race.url == None:
+            line_bot_api.push_message(user_id, FlexSendMessage("レース中", gen_retry_json()))
+        else:
+            # TODO RETURN ODDS AND RANKING
+            line_bot_api.push_message(user_id, VideoSendMessage(
+                preview_image_url = "https://3.bp.blogspot.com/-DVHqPcbR9fA/VkxMAs3sgsI/AAAAAAAA0ss/ofdmv2PEXWo/s450/sports_keiba.png",
+                original_content_url = user.race.url
+            ))
+        
 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):

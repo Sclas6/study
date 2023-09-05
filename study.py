@@ -21,7 +21,7 @@ class Horse:
     def __init__(self, name):
         self.id = None
         self.name = name
-        self.stats = {"speed": 20, "hp": 20, "power": 20}
+        self.stats = {"speed": 35, "hp": 35, "power": 35}
         self.stats_now = dict.copy(self.stats)
         self.condition = c.NORMAL
         self.rider = None
@@ -108,6 +108,7 @@ class Race:
         self.field = field
         self.lane_info = horses[:field.lane_size]
         self.odds = self.get_odds()
+        self.url = None
         for i, horse in enumerate(self.lane_info, 1): 
             horse.set_id(i)
             horse.reset_condition()
@@ -161,8 +162,14 @@ class Race:
         plt.gca().spines["top"].set_visible(False)
         plt.gca().spines["right"].set_color("red")
         plt.gca().spines["right"].set_linewidth(3)
+        dir = 'result/'
+        v_name = str(time.time()).replace('.', '').ljust(17, '0')
+        files = os.listdir("result/")
+        for i, file in enumerate(sorted(files, reverse = True)):
+            if i >= 10: os.remove(f"{dir}{file}")
+        url = f"https://sclas.xyz:334/video/{v_name}.mp4"
         fourcc = cv2.VideoWriter_fourcc('m', 'p', '4', 'v')
-        video = cv2.VideoWriter('result/video.mp4',fourcc, 20.0, (WIDTH, HEIGHT + 80))
+        video = cv2.VideoWriter(f"result/{v_name}.mp4",fourcc, 10.0, (WIDTH, HEIGHT + 80))
         im_slope = gen_image(field.slope, field.length)
         race_finish = False
         rank = []
@@ -170,13 +177,6 @@ class Race:
         fix = [1.0 for _ in range(field.lane_size)]
         past_type = [None for _ in range(field.lane_size)]
         while(race_finish == False):
-            ax.cla()
-            ax.tick_params(left=False, top=False)
-            ax.set_xlim([0, field.length])
-            ax.set_ylim([0 - 0.5, field.lane_size - 0.5])
-            ax.set_yticks([n for n in range(len(self.get_horses()))])
-            ax.set_yticklabels([n.name for n in self.get_horses()], rotation = 45)
-            print(length_lest)
             for a in range(field.lane_size):
                 # ゴールしているレーンはスキップ
                 if a not in rank:
@@ -191,6 +191,12 @@ class Race:
                 if (length_lest[a] < 0):
                     if a not in rank :rank.append(a)
             if np.all(np.array(length_lest) < 0) == True: race_finish = True
+            ax.cla()
+            ax.tick_params(left=False, top=False)
+            ax.set_xlim([0, field.length])
+            ax.set_ylim([0 - 0.5, field.lane_size - 0.5])
+            ax.set_yticks([n for n in range(len(self.get_horses()))])
+            ax.set_yticklabels([n.name for n in self.get_horses()], rotation = 45)
             xlim = ax.get_xlim()
             ylim = ax.get_ylim()
             ax.imshow(img, alpha=0.6,extent=[*xlim, *ylim], aspect='auto')
@@ -200,13 +206,13 @@ class Race:
             im = cv2.cvtColor(im, cv2.COLOR_RGBA2BGR)
             im = cv2.copyMakeBorder(im, 80, 0, 0, 0, cv2.BORDER_CONSTANT, value=[255,255,255])
             im[50:150, 0:640] = im_slope
-            #cv2.imshow("test", im)
-            #cv2.waitKey(1)
             video.write(im)
+            #print(f"{length_lest}/{field.length}")
         ranking = [-1 for _ in range(field.lane_size)]
         for i, n in enumerate(rank):
             ranking[n] = i
-        return ranking
+        self.result = ranking
+        self.url = url
 
     def get_rank(self):
         field = self.get_field()
