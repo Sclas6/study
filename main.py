@@ -5,7 +5,6 @@ from linebot.models import TextMessage, TextSendMessage, FlexSendMessage, ImageS
 from linebot.models import RichMenu, RichMenuArea, RichMenuBounds, RichMenuSize
 from linebot.models import MessageEvent, JoinEvent, PostbackEvent, LeaveEvent, FollowEvent, UnfollowEvent
 from linebot.models import MessageAction, PostbackAction
-from concurrent.futures import ThreadPoolExecutor
 import os
 import pandas as pd
 import pickle
