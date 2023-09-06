@@ -1,6 +1,7 @@
 import datetime
 from study import Horse, Field, Race
 import constant as c
+import numpy as np
 from sec import *
 
 def get_icon(i):
@@ -55,11 +56,17 @@ def gen_horse_info_json(horse: Horse, odds):
     return bubble
 
 def gen_horses_info_json(race: Race):
+    contents = {"type": "carousel", "contents": []}
+    for i, horse in enumerate(race.get_horses()):
+        contents["contents"].append(gen_horse_info_json(horse, race.odds[i]))
+    return contents
+
+def gen_ranking_json(horses, ranking):
     contents = {
     "type": "carousel",
     "contents": []}
-    for i, horse in enumerate(race.get_horses()):
-        contents["contents"].append(gen_horse_info_json(horse, race.get_odds()[i]))
+    for horse in np.array(horses)[ranking][:3]:
+        contents["contents"].append(gen_horse_info_json(horse, None))
     return contents
 
 def gen_buy_ticket_json(race: Race):
@@ -67,7 +74,7 @@ def gen_buy_ticket_json(race: Race):
     "type": "carousel",
     "contents": []}
     for i, horse in enumerate(race.get_horses()):
-        contents["contents"].append(gen_horse_info_json(horse, race.get_odds()[i]))
+        contents["contents"].append(gen_horse_info_json(horse, race.odds[i]))
         contents["contents"][i]["footer"] = {"type":"box","layout":"vertical","spacing":"sm",
         "contents":[{"type":"box","layout":"horizontal","contents":[{"type":"button","action":{"type":"postback",
         "label":"1枚","data":f"buy_{i + 1}_1"},"style":"primary"},{"type":"separator","margin":"5px", "color": "#FFFFFF00"},

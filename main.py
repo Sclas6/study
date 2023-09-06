@@ -1,7 +1,7 @@
 from flask import *
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
-from linebot.models import TextMessage, TextSendMessage, FlexSendMessage, ImageSendMessage, VideoSendMessage
+from linebot.models import TextMessage, TextSendMessage, FlexSendMessage, VideoSendMessage
 from linebot.models import RichMenu, RichMenuArea, RichMenuBounds, RichMenuSize
 from linebot.models import MessageEvent, JoinEvent, PostbackEvent, LeaveEvent, FollowEvent, UnfollowEvent
 from linebot.models import MessageAction, PostbackAction
@@ -75,6 +75,18 @@ def serach_room(id):
         if r.id == id: return r
     return None
 
+def get_return_gold(tickets: dict, odds: list, ranking: list):
+    ret = 0
+    print(ranking)
+    print(tickets)
+    print(odds)
+    for k, v in tickets.items():
+        if ranking[k - 1] == 0:
+            print(f"id: {k} is top")
+            ret += v * 100 * odds[k - 1]
+    print(ret)
+    return int(ret)
+
 def create_random_field():
     lane_size = random.randint(4, 12)
     field = Field(random.randint(500, 2000), lane_size)
@@ -106,7 +118,7 @@ def create_random_race(user_horse):
 def make_df(race: Race):
     ranking = race.get_rank()
     rank_ai = race.get_pred()
-    odds = race.get_odds()
+    odds = race.odds
     '''
     ranking_ai = [-1 for _ in range(race.get_field().lane_size)]
     for i, n in enumerate(rank_ai):
@@ -312,15 +324,18 @@ def on_postback(event):
         user.set_status("Create_Room")
         save_pkl(users, "pkl/users")
     elif command == "race":
+        user.status = "race"
         user.race = create_random_race(user_horse)
         save_pkl(users, "pkl/users")
         line_bot_api.push_message(to = user_id, messages = FlexSendMessage("馬場情報", gen_field_info_json(user.race.field)))
         user.race.start()
         print(user.race.url)
         save_pkl(users, "pkl/users")
-    elif command == "buy_ticket":
+    elif command == "buy_ticket" and user.status == "race":
+        user.status = "buy_ticket"
+        save_pkl(users, "pkl/users")
         line_bot_api.push_message(to = user_id, messages = FlexSendMessage("馬券購入", gen_buy_ticket_json(user.race)))
-    elif re.match("^buy_\d_", command) is not None:
+    elif re.match("^buy_\d_", command) is not None and user.status == "buy_ticket":
         result = re.findall("\d+", command)
         if len(result) == 2: horse_id, n = [int(n) for n in result]
         else:
@@ -330,23 +345,35 @@ def on_postback(event):
         if user.gold < n * 100 or n == 0:
             line_bot_api.push_message(user_id, TextSendMessage(f"所持金{user.gold}Gを上回っています!"))
         else:
-            if horse_id in user.tickets: user.tickets[horse_id] += n
+            if horse_id in user.tickets:user.tickets[horse_id] += n
             else: user.tickets[horse_id] = n
             print(user.tickets)
             print(user.gold)
             user.gold -= n * 100
-            line_bot_api.push_message(to = user_id, messages = FlexSendMessage("購入馬券", gen_receipt(user.tickets, user.gold)))
             save_pkl(users, "pkl/users")
-    elif command == "buy_end":
+            line_bot_api.push_message(to = user_id, messages = FlexSendMessage("購入馬券", gen_receipt(user.tickets, user.gold)))
+    elif command == "buy_end" and user.status == "buy_ticket":
+        save_pkl(users, "pkl/users")
         if user.race.url == None:
             line_bot_api.push_message(user_id, FlexSendMessage("レース中", gen_retry_json()))
         else:
-            # TODO RETURN ODDS AND RANKING
+            user.status = None
             line_bot_api.push_message(user_id, VideoSendMessage(
                 preview_image_url = "https://3.bp.blogspot.com/-DVHqPcbR9fA/VkxMAs3sgsI/AAAAAAAA0ss/ofdmv2PEXWo/s450/sports_keiba.png",
                 original_content_url = user.race.url
             ))
-        
+            print(user.tickets)
+            ret = get_return_gold(user.tickets, user.race.odds, user.race.result)
+            user.gold += ret
+            user.tickets = {}
+            save_pkl(users, "pkl/users")
+            r = [-1 for _ in user.race.result]
+            for i in user.race.result:
+                r[user.race.result[i]] = i
+            # TODO Ranking ICON
+            line_bot_api.push_message(user_id, FlexSendMessage("レース中", gen_ranking_json(user.race.lane_info, r)))
+            # TODO Making Receipt
+            line_bot_api.push_message(user_id, TextSendMessage(f"払い戻し金は{ret}円です。\n所持金が{user.gold}Gになりました!"))
 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
