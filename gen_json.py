@@ -1,6 +1,7 @@
 import datetime
 from study import Horse, Field, Race
 import constant as c
+from sec import *
 
 def get_icon(i):
     if i < 20:
@@ -19,7 +20,7 @@ def get_icon(i):
         icon = "capital_a"
     else:
         icon = "capital_s"
-    return f"https://sclas.xyz:334/img/icon/{icon}.png"
+    return f"{URL}/img/icon/{icon}.png"
 
 def gen_horse_info_json(horse: Horse, odds):
     bubble = {"type": "bubble","hero": 
@@ -86,7 +87,7 @@ def gen_create_horse_json():
     return contents
 
 def gen_field_info_json(field: Field):
-    contents = {"type":"bubble","hero":{"type":"image","url":"https://sclas.xyz:334/img/field3.jpg","size":"full",
+    contents = {"type":"bubble","hero":{"type":"image","url":f"{URL}/img/field3.jpg","size":"full",
     "aspectRatio":"20:13","aspectMode":"cover","action":{"type":"uri","uri":"http://linecorp.com/"}},"body":
     {"type":"box","layout":"vertical","contents":[{"type":"text","text":"馬場情報","weight":"bold","size":"xl"},
     {"type":"box","layout":"vertical","margin":"lg","spacing":"sm","contents":[{"type":"box","layout":"baseline",

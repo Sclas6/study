@@ -10,7 +10,7 @@ import numpy as np
 import constant as c
 import lightgbm as lgb
 import os
-import shutil
+from sec import *
 
 WIDTH, HEIGHT = [640, 480]
 
@@ -100,7 +100,7 @@ class Field:
         files = os.listdir("result/slope")
         for i, file in enumerate(sorted(files, reverse = True)):
             if i >= 10: os.remove(f"{dir}{file}")
-        url = f"https://sclas.xyz:334/img/slope/{im_name}.jpg"
+        url = f"{URL}/img/slope/{im_name}.jpg"
         return url
 
 class Race:
@@ -167,9 +167,9 @@ class Race:
         files = os.listdir("result/")
         for i, file in enumerate(sorted(files, reverse = True)):
             if i >= 10: os.remove(f"{dir}{file}")
-        url = f"https://sclas.xyz:334/video/{v_name}.mp4"
+        url = f"{URL}/video/{v_name}.mp4"
         fourcc = cv2.VideoWriter_fourcc('m', 'p', '4', 'v')
-        video = cv2.VideoWriter(f"result/{v_name}.mp4",fourcc, 10.0, (WIDTH, HEIGHT + 80))
+        video = cv2.VideoWriter(f"result/{v_name}.mp4",fourcc, 30.0, (WIDTH, HEIGHT + 80))
         im_slope = gen_image(field.slope, field.length)
         race_finish = False
         rank = []
@@ -182,7 +182,7 @@ class Race:
                 if a not in rank:
                     if self.get_horses()[a].has_skill(c.ACCELERATION) and past_type[a] == field.get_slope(length_lest[a] + 50):
                         fix[a] += 0.04
-                        length_lest[a] = int(length_lest[a] - progress(self.get_horses()[a], field, length_lest[a]) * fix[a])
+                        length_lest[a] = length_lest[a] - progress(self.get_horses()[a], field, length_lest[a]) * fix[a]
                     else:
                         fix[a] = 1.0
                         length_lest[a] = length_lest[a] - progress(self.get_horses()[a], field, length_lest[a])
@@ -322,22 +322,22 @@ def progress(horse, field, lest):
     if lest > field.length / 2:
         if horse.stats_now["hp"] > 0 and horse.status != c.REST:
             horse.stats_now["hp"] -= 1
-            prog = int(random.randint(speed - 5, speed + 5) * fix)
+            prog = random.randint(speed - 5, speed + 5) * fix
         else:
             horse.status = c.REST
             horse.stats_now["hp"] += 1
             if horse.stats_now["hp"] >= horse.stats["hp"]: horse.status = c.RUN
-            prog = int(random.randint(int(speed/2) - 5, int(speed/2) + 5) * fix)
+            prog = random.randint(int(speed/2) - 5, int(speed/2) + 5) * fix
     else:
         if horse.stats_now["power"] > 0 and horse.status != c.REST:
             horse.stats_now["power"] -= 1
-            prog = int(random.randint(speed - 5, speed + 5) * fix)
+            prog = random.randint(speed - 5, speed + 5) * fix
         else:
             horse.status = c.REST
             horse.stats_now["power"] += 1
             if horse.stats_now["power"] >= horse.stats["power"]: horse.status = c.RUN
-            prog = int(random.randint(int(speed/2) - 5, int(speed/2) + 0) * fix)
-    return prog
+            prog = random.randint(int(speed/2) - 5, int(speed/2) + 0) * fix
+    return prog / 6
 
 def main():
 

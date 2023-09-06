@@ -405,7 +405,7 @@ def handle_message(event):
             TextSendMessage(f"{df}")
         )
     elif command == "v":
-        url = "https://sclas.xyz:334/img/video.mp4"
+        url = f"{URL}/img/video.mp4"
         line_bot_api.push_message(id, VideoSendMessage(
             preview_image_url = "https://3.bp.blogspot.com/-DVHqPcbR9fA/VkxMAs3sgsI/AAAAAAAA0ss/ofdmv2PEXWo/s450/sports_keiba.png",
             original_content_url = url
@@ -421,3 +421,6 @@ def handle_message(event):
             event.reply_token,
             TextSendMessage(f"{df}")
         )
+
+if __name__ == "__main__":
+    app.run()

@@ -4,4 +4,3 @@ __pycache__/
 *.exe
 test.py
 sec.py
-settings.py
