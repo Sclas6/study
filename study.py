@@ -28,6 +28,8 @@ class Horse:
         self.fine_type = c.GRASS
         self.skill = c.NONE
         self.status = c.RUN
+        self.stamina = 50
+        self.pt = 0
 
     def horse_info(self):
         return {"id":self.id, "name":self.name, "rider":self.rider, "condition":self.condition ,"skill":self.skill, "goodat":self.fine_type}
@@ -213,6 +215,9 @@ class Race:
             ranking[n] = i
         self.result = ranking
         self.url = url
+        for horse in self.lane_info:
+            horse.stamina -= random.randint(5, 10)
+            if horse.stamina < 0: horse.stamina = 0
 
     def get_rank(self):
         field = self.get_field()

@@ -87,9 +87,28 @@ def get_return_gold(tickets: dict, odds: list, ranking: list):
     print(ret)
     return int(ret)
 
+def train_user_horse(mode: str, horse: Horse):
+    prev_stats = horse.stats.copy()
+    prev_pt = horse.pt
+    prev_stamina = horse.stamina
+    if mode != "int":
+        if horse.stamina != 0:
+            for i in horse.stats:
+                horse.stats[i] += random.randint(1, 3)
+            horse.stats[mode] += random.randint(4, 7)
+            horse.stamina -= random.randint(5, 10)
+            for i in horse.stats:
+                if horse.stats[i] > 100: horse.stats[i] = 100
+            if horse.stamina < 0: horse.stamina = 0
+    else:
+        horse.pt += random.randint(5, 10)
+        horse.stamina += random.randint(5, 10)
+    return ((prev_stats, prev_pt, prev_stamina), (horse.stats, horse.pt, horse.stamina))
+
 def create_random_field():
     lane_size = random.randint(4, 12)
-    field = Field(random.randint(500, 2000), lane_size)
+    # DEBUG MAX RANGE 2000 -> 600
+    field = Field(random.randint(500, 500), lane_size)
     #field.set_slope({0: c.DOWN})
     field.weather = random.randint(c.CLEAR, c.RAIN)
     field.type = random.randint(c.GRASS, c.DURT)
@@ -151,7 +170,7 @@ def createRichmenu():
             areas=[
                 RichMenuArea(
                     bounds = RichMenuBounds(x=0, y=0, width=400, height=405),
-                    action = PostbackAction(type = "postback", data = "ikusei")
+                    action = PostbackAction(type = "postback", data = "train")
                 ),
                 RichMenuArea(
                     bounds = RichMenuBounds(x=400, y=0, width=400, height=405),
@@ -305,10 +324,6 @@ def on_postback(event):
     print(command)
     user_id = event.source.user_id
     user: User = serach_room(user_id)
-    if user == None:
-        user = User(id)
-        users.append(user)
-        save_pkl(users, "pkl/users")
     user_horse: Horse = user.horse
     if command == "ikusei":
         pass
@@ -324,18 +339,17 @@ def on_postback(event):
         user.set_status("Create_Room")
         save_pkl(users, "pkl/users")
     elif command == "race":
-        user.status = "race"
         user.race = create_random_race(user_horse)
+        user.status = "race"
         save_pkl(users, "pkl/users")
         line_bot_api.push_message(to = user_id, messages = FlexSendMessage("馬場情報", gen_field_info_json(user.race.field)))
         user.race.start()
-        print(user.race.url)
-        save_pkl(users, "pkl/users")
+        save_pkl((user.race.url, user.race.result), f"pkl/result_{user_id}")
     elif command == "buy_ticket" and user.status == "race":
         user.status = "buy_ticket"
         save_pkl(users, "pkl/users")
         line_bot_api.push_message(to = user_id, messages = FlexSendMessage("馬券購入", gen_buy_ticket_json(user.race)))
-    elif re.match("^buy_\d_", command) is not None and user.status == "buy_ticket":
+    elif re.match("^buy_\d_", command) is not None and (user.status == "buy_ticket"):
         result = re.findall("\d+", command)
         if len(result) == 2: horse_id, n = [int(n) for n in result]
         else:
@@ -353,27 +367,76 @@ def on_postback(event):
             save_pkl(users, "pkl/users")
             line_bot_api.push_message(to = user_id, messages = FlexSendMessage("購入馬券", gen_receipt(user.tickets, user.gold)))
     elif command == "buy_end" and user.status == "buy_ticket":
-        save_pkl(users, "pkl/users")
-        if user.race.url == None:
+        result = None
+        if os.path.exists(f"pkl/result_{user_id}.pkl"):
+            with open(f"pkl/result_{user_id}.pkl", "rb") as f:
+                result = pickle.load(f)
+        if result[0] == None:
+            user.status = "buy_ticket"
+            save_pkl(users, "pkl/users")
             line_bot_api.push_message(user_id, FlexSendMessage("レース中", gen_retry_json()))
         else:
             user.status = None
             line_bot_api.push_message(user_id, VideoSendMessage(
                 preview_image_url = "https://3.bp.blogspot.com/-DVHqPcbR9fA/VkxMAs3sgsI/AAAAAAAA0ss/ofdmv2PEXWo/s450/sports_keiba.png",
-                original_content_url = user.race.url
+                original_content_url = result[0]
             ))
             print(user.tickets)
-            ret = get_return_gold(user.tickets, user.race.odds, user.race.result)
+            ret = get_return_gold(user.tickets, user.race.odds, result[1])
             user.gold += ret
             user.tickets = {}
+            save_pkl((None, None), f"pkl/result_{user_id}")
             save_pkl(users, "pkl/users")
-            r = [-1 for _ in user.race.result]
-            for i in user.race.result:
-                r[user.race.result[i]] = i
+            r = [-1 for _ in result[1]]
+            for i in result[1]:
+                r[result[1][i]] = i
             # TODO Ranking ICON
-            line_bot_api.push_message(user_id, FlexSendMessage("レース中", gen_ranking_json(user.race.lane_info, r)))
+            line_bot_api.push_message(user_id, FlexSendMessage("レース結果", gen_ranking_json(user.race.lane_info, r)))
             # TODO Making Receipt
             line_bot_api.push_message(user_id, TextSendMessage(f"払い戻し金は{ret}円です。\n所持金が{user.gold}Gになりました!"))
+            line_bot_api.push_message(user_id, TextSendMessage(f"{user.horse.name}の体力が{user.horse.stamina}になりました!"))
+    elif command == "train":
+        horse = user.horse
+        if horse == None:
+            line_bot_api.push_message(to = user_id, messages = FlexSendMessage("馬作成", gen_create_horse_json()))
+        else:
+            user.status = "train"
+            save_pkl(users, "pkl/users")
+            line_bot_api.push_message(user_id, FlexSendMessage("トレーニング", gen_train_json()))
+    elif command == "train_speed" and user.status == "train":
+        user.status = None
+        diff = train_user_horse("speed", user.horse)
+        save_pkl(users, "pkl/users")
+        line_bot_api.push_message(user_id, FlexSendMessage("トレーニング", gen_train_result_json(user_horse.name, diff)))
+        line_bot_api.push_message(user_id, TextSendMessage(f"{user.horse.name}の体力が{user.horse.stamina}になりました!"))
+    elif command == "train_hp" and user.status == "train":
+        user.status = None
+        diff = train_user_horse("hp", user.horse)
+        save_pkl(users, "pkl/users")
+        line_bot_api.push_message(user_id, FlexSendMessage("トレーニング", gen_train_result_json(user_horse.name, diff)))
+        line_bot_api.push_message(user_id, TextSendMessage(f"{user.horse.name}の体力が{user.horse.stamina}になりました!"))
+    elif command == "train_power" and user.status == "train":
+        user.status = None
+        diff = train_user_horse("power", user.horse)
+        save_pkl(users, "pkl/users")
+        line_bot_api.push_message(user_id, FlexSendMessage("トレーニング", gen_train_result_json(user_horse.name, diff)))
+    elif command == "train_int" and user.status == "train":
+        user.status = None
+        diff = train_user_horse("int", user.horse)
+        save_pkl(users, "pkl/users")
+        line_bot_api.push_message(user_id, FlexSendMessage("トレーニング", gen_train_int_json(user_horse.name, diff)))
+    elif command == "get_skill" and user.status == "get_skill":
+        prev_skill = user.horse.skill
+        while True:
+            user.horse.skill = random.randint(c.STABLE, c.NONE)
+            if user.horse.skill != c.NONE and user.horse.skill != prev_skill: break
+        user.status = None
+        user.horse.stamina -= 50
+        user.horse.pt -= 100
+        save_pkl(users, "pkl/users")
+        line_bot_api.push_message(user_id, TextSendMessage(f"{user.horse.name}が{c.SKILLS[user.horse.skill]}になりました!"))
+    print(user.status)
+        
 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
@@ -444,10 +507,10 @@ def handle_message(event):
         room.gold = 100000
         save_pkl(users, "pkl/users")
     else:
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(f"{df}")
-        )
+        room.status = "get_skill"
+        save_pkl(users, "pkl/users")
+        line_bot_api.push_message(id, FlexSendMessage("馬情報", gen_tokkun_json(room.horse)))
+
 
 if __name__ == "__main__":
     app.run()
