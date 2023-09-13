@@ -1520,5 +1520,130 @@ def gen_retry_json():
     return {"type":"bubble","body":{"type":"box","layout":"vertical","contents":[{"type":"text","text":"レース中です。\n暫くお待ちください。","wrap":True}]},"footer":{"type":"box","layout":"vertical","contents":[{"type":"button","action":{"type":"postback","label":"リトライ","data":"buy_end"},"style":"secondary"}]}}
     
 
-def gen_group_battle_start_json():
-    pass
+def gen_group_battle_start_json(field: Field):
+    contents = {"type":"bubble","hero":{"type":"image","url":f"{URL}/img/field3.jpg","size":"full",
+    "aspectRatio":"20:13","aspectMode":"cover","action":{"type":"uri","uri":"http://linecorp.com/"}},"body":
+    {"type":"box","layout":"vertical","contents":[{"type":"text","text":"馬場情報","weight":"bold","size":"xl"},
+    {"type":"box","layout":"vertical","margin":"lg","spacing":"sm","contents":[{"type":"box","layout":"baseline",
+    "spacing":"sm","contents":[{"type":"text","text":"コース","color":"#aaaaaa","size":"sm","flex":2},{"type":"text",
+    "text":f"{field.length}m {c.FIELD[field.type]}","wrap":True,"color":"#666666","size":"sm","flex":5}]},{"type":"box","layout":"baseline",
+    "spacing":"sm","contents":[{"type":"text","text":"出走頭数","color":"#aaaaaa","size":"sm","flex":2},{"type":"text",
+    "text":f"{field.lane_size}頭","wrap":True,"color":"#666666","size":"sm","flex":5}]},{"type":"box","layout":"baseline",
+    "spacing":"sm","contents":[{"type":"text","text":"天気","color":"#aaaaaa","size":"sm","flex":2},{"type":"text",
+    "text": c.WEATHER[field.weather],"wrap":True,"color":"#666666","size":"sm","flex":5}]},{"type":"text","text":"高低差","size":"sm",
+    "color":"#aaaaaa","align":"center"},{"type":"image","aspectMode":"cover","size":"full","aspectRatio":"480:100",
+    "url":field.gen_slope_image()}]}]},
+  "footer": {
+    "type": "box",
+    "layout": "horizontal",
+    "spacing": "sm",
+    "contents": [
+      {
+        "type": "button",
+        "style": "primary",
+        "height": "sm",
+        "action": {
+          "type": "postback",
+          "data": "group_join",
+          "label": "参加"
+        }
+      },
+      {
+        "type": "button",
+        "action": {
+          "type": "postback",
+          "label": "参加者確認",
+          "data": "group_participant"
+        },
+        "style": "secondary",
+        "height": "sm"
+      }
+    ],
+    "flex": 0
+  }
+}
+    return contents
+
+def gen_group_check_participant(users: list):
+    contents = {
+  "type": "bubble",
+  "header": {
+    "type": "box",
+    "layout": "vertical",
+    "contents": [
+      {
+        "type": "text",
+        "size": "xl",
+        "text": "参加者確認",
+        "weight": "bold"
+      }
+    ]
+  },
+  "body": {
+    "type": "box",
+    "layout": "vertical",
+    "contents": [
+      {
+        "type": "text",
+        "text": "参加者",
+        "size": "xs",
+        "color": "#aaaaaa"
+      }
+    ]
+  },
+  "footer": {
+    "type": "box",
+    "layout": "horizontal",
+    "contents": [
+      {
+        "type": "button",
+        "action": {
+          "type": "postback",
+          "label": "参加",
+          "data": "group_join"
+        },
+        "style": "primary",
+        "height": "sm"
+      }
+    ]
+  }
+}
+    for user in users:
+        contents["body"]["contents"].append(
+		{
+			"type": "box",
+			"layout": "baseline",
+			"contents": [
+			{
+				"type": "text",
+				"text": f"{user.name}",
+				"flex": 1
+			},
+			{
+				"type": "text",
+				"text": f"{user.horse.name}"
+			}
+			]
+		}
+		)
+    if len(users) > 0:
+        contents["footer"]["contents"].append(
+		{
+			"type": "separator",
+			"color": "#FFFFFF00",
+			"margin": "md"
+		}
+		)
+        contents["footer"]["contents"].append(
+		{
+			"type": "button",
+			"action": {
+			"type": "postback",
+			"label": "レース開始",
+			"data": "group_start"
+			},
+			"style": "primary",
+			"height": "sm"
+		}
+		)
+    return contents

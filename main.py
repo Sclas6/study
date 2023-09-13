@@ -1,7 +1,7 @@
 from flask import *
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
-from linebot.models import TextMessage, TextSendMessage, FlexSendMessage, VideoSendMessage
+from linebot.models import TextMessage, TextSendMessage, FlexSendMessage, VideoSendMessage, AudioSendMessage
 from linebot.models import RichMenu, RichMenuArea, RichMenuBounds, RichMenuSize
 from linebot.models import MessageEvent, JoinEvent, PostbackEvent, LeaveEvent, FollowEvent, UnfollowEvent
 from linebot.models import MessageAction, PostbackAction
@@ -18,6 +18,7 @@ from sec import *
 class User:
     def __init__(self, id):
         self.id = id
+        self.name = ""
         self.race: Race = create_random_race(None)
         self.horse: Horse = None
         self.status = None
@@ -44,6 +45,18 @@ class User:
     
     def get_status(self):
         return self.status
+    
+class Group:
+    def __init__(self, id):
+        self.id = id
+        self.field = None
+        self.race: Race = None
+        self.users = []
+
+    def reset(self):
+        self.field = None
+        self.race = None
+        self.users = []
 
 app = Flask(__name__)
 
@@ -51,6 +64,7 @@ line_bot_api = LineBotApi(LINE_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
 users = []
+groups = []
 
 def check_herf(str):
     for i, a in enumerate(str):
@@ -66,12 +80,24 @@ def load_users():
             users = pickle.load(f)
     return users
 
+def load_groups():
+    global groups
+    if os.path.exists("pkl/groups.pkl"):
+        with open("pkl/groups.pkl", "rb") as f:
+            groups = pickle.load(f)
+    return groups
+
 def save_pkl(var, name):
     with open(f"{name}.pkl", "wb") as f:
         pickle.dump(var, f)
 
-def serach_room(id):
+def serach_user(id):
     for r in users:
+        if r.id == id: return r
+    return None
+
+def serach_group(id):
+    for r in groups:
         if r.id == id: return r
     return None
 
@@ -185,7 +211,7 @@ def createRichmenu():
         richMenuId = line_bot_api.create_rich_menu(rich_menu=rich_menu_to_create)
 
         # upload an image for rich menu
-        path = 'static/menu.jpg'
+        path = 'static/menu.png'
 
         with open(path, 'rb') as f:
             line_bot_api.set_rich_menu_image(richMenuId, "image/jpeg", f)
@@ -273,12 +299,12 @@ def callback():
 @handler.add(JoinEvent)
 def join_event(event):
     group_id = event.source.group_id
-    global users
-    load_users()
-    room = User(group_id)
-    users.append(room)
-    save_pkl(users, "pkl/users")
-    print(users)
+    global groups
+    load_groups()
+    room = Group(group_id)
+    groups.append(room)
+    save_pkl(groups, "pkl/groups")
+    print(groups)
     str_join = 'keiba bot desu'
     line_bot_api.reply_message(
         event.reply_token,
@@ -297,13 +323,13 @@ def leave_event(event):
 @handler.add(LeaveEvent)
 def leave_event(event):
     group_id = event.source.group_id
-    global users
-    load_users()
-    for n in users:
+    global groups
+    load_groups()
+    for n in groups:
         if n.id == group_id:
-            users.remove(n)
-    save_pkl(users, "pkl/users")
-    print(users)
+            groups.remove(n)
+    save_pkl(groups, "pkl/groups")
+    print(groups)
 
 @handler.add(UnfollowEvent)
 def leave_event(event):
@@ -318,16 +344,24 @@ def leave_event(event):
 
 @handler.add(PostbackEvent)
 def on_postback(event):
-    global users
+    global users, groups
     load_users()
+    load_groups()
     command = event.postback.data
     print(command)
+    group: Group = None
     user_id = event.source.user_id
-    user: User = serach_room(user_id)
+    user: User = serach_user(user_id)
+    if user == None:
+        user = User(user_id)
+        users.append(user)
+        save_pkl(users, "pkl/users")
     user_horse: Horse = user.horse
-    if command == "ikusei":
-        pass
-    elif command == "umajouhou":
+    try:
+        group = serach_group(event.source.group_id)
+        print(group)
+    except: pass
+    if command == "umajouhou":
         horse = user.horse
         if horse == None:
             line_bot_api.push_message(to = user_id, messages = FlexSendMessage("馬作成", gen_create_horse_json()))
@@ -345,7 +379,7 @@ def on_postback(event):
         line_bot_api.push_message(to = user_id, messages = FlexSendMessage("馬場情報", gen_field_info_json(user.race.field)))
         user.race.start()
         save_pkl((user.race.url, user.race.result), f"pkl/result_{user_id}")
-    elif command == "buy_ticket" and user.status == "race":
+    elif command == "buy_ticket" and (user.status == "race" or user.status == "buy_ticket"):
         user.status = "buy_ticket"
         save_pkl(users, "pkl/users")
         line_bot_api.push_message(to = user_id, messages = FlexSendMessage("馬券購入", gen_buy_ticket_json(user.race)))
@@ -435,81 +469,127 @@ def on_postback(event):
         user.horse.pt -= 100
         save_pkl(users, "pkl/users")
         line_bot_api.push_message(user_id, TextSendMessage(f"{user.horse.name}が{c.SKILLS[user.horse.skill]}になりました!"))
+    elif command == "group_join":
+        try:
+            user.name = line_bot_api.get_profile(user_id).display_name
+            if user.horse is not None:
+                if user.id not in [u.id for u in group.users]:
+                    group.users.append(user)
+                    save_pkl(groups, "pkl/groups")
+                    line_bot_api.push_message(group.id, TextSendMessage(f"{user.name}さんが参加しました！"))
+                else:
+                    line_bot_api.push_message(group.id, TextSendMessage("既に参加しています！"))
+            else:
+                line_bot_api.push_message(group.id, TextSendMessage("所有している馬がありません！"))
+        except:
+            line_bot_api.push_message(group.id, TextSendMessage("友達追加してください！"))
+    elif command == "group_participant":
+        line_bot_api.push_message(group.id, FlexSendMessage("参加者情報", gen_group_check_participant(group.users)))
+    elif command == "group_start":
+        horses = []
+        for i, user in enumerate(group.users):
+            horse = user.horse
+            horse.rider = Rider(f"{i}")
+            horse.id = i
+            horses.append(horse)
+        group.field.lane_size = len(group.users)
+        group.race = Race(horses, group.field)
+        group.race.start()
+        while True:
+            if group.race.url is not None: break
+        line_bot_api.push_message(group.id, VideoSendMessage(
+            preview_image_url = "https://3.bp.blogspot.com/-DVHqPcbR9fA/VkxMAs3sgsI/AAAAAAAA0ss/ofdmv2PEXWo/s450/sports_keiba.png",
+            original_content_url = group.race.url
+        ))
+        r = [-1 for _ in group.race.result]
+        for i in group.race.result:
+            r[group.race.result[i]] = i
+        line_bot_api.push_message(group.id, FlexSendMessage("レース結果", gen_ranking_json(group.race.lane_info, r)))
+        group.race = None
+        save_pkl(groups, "pkl/groups")
     print(user.status)
         
 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
-    global users
+    global users, groups
     load_users()
+    load_groups()
     print(users)
     linelist = event.message.text
     try:
         command, token = linelist.split()
         print(f"{command}, {token}")
     except: command, token = [linelist, None]
+    id = event.source.user_id
+    user = serach_user(id)
+    group: Group = None
     try:
-        id = event.source.group_id
-    except:
-        id = event.source.user_id
-    room = serach_room(id)
-    if room == None:
-        room = User(id)
-        users.append(room)
+        group = serach_group(event.source.group_id)
+        print(group)
+    except: pass
+    if user == None:
+        user = User(id)
+        users.append(user)
         save_pkl(users, "pkl/users")
-    print(room)
-    print(room.status)
-    race = room.race
-    #print(room.get_status())
+    print(user)
+    print(user.status)
+    race = user.race
 
     df = make_df(race)
     df = df.sort_values("Rank")
-    #field = create_random_field()
-    if room.get_status() == "Create_Room":
-        if check_herf(command):
-            horse = Horse(command)
-            horse.set_skill(c.NONE)
-            room.horse = horse
-            room.set_status(None)
-            save_pkl(users, "pkl/users")
-            line_bot_api.push_message(id, TextSendMessage("馬を作成しました!"))
-            line_bot_api.push_message(id, FlexSendMessage("馬情報", gen_horse_info_json(horse, None)))
-        else: line_bot_api.push_message(id, TextSendMessage("名前は半角文字の12字以内である必要があります"))
-    elif command == "h":
-        #print(gen_horse_info_json(field))
-        line_bot_api.reply_message(
-            event.reply_token,
-            FlexSendMessage(
-                alt_text='馬情報',
-                contents=gen_horses_info_json(race)
-            )
-        )
-    elif command == "c":
-        race = create_random_race(room.horse)
-        room.set_race(race)
-        save_pkl(users, "pkl/users")
-        df = make_df(room.race)
-        df = df.sort_values("Rank")
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(f"{df}")
-        )
-    elif command == "v":
-        url = f"{URL}/img/video.mp4"
-        line_bot_api.push_message(id, VideoSendMessage(
-            preview_image_url = "https://3.bp.blogspot.com/-DVHqPcbR9fA/VkxMAs3sgsI/AAAAAAAA0ss/ofdmv2PEXWo/s450/sports_keiba.png",
-            original_content_url = url
-        ))
-    elif command == "battle":
-        pass
-    elif command == "reset":
-        room.tickets = {}
-        room.gold = 100000
-        save_pkl(users, "pkl/users")
+    if group is not None:
+        if command == "battle":
+            group.reset()
+            group.field = create_random_field()
+            group.field.lane_size = 5
+            save_pkl(groups, "pkl/groups")
+            #line_bot_api.push_message(group.id, AudioSendMessage("url", 0))
+            line_bot_api.reply_message(event.reply_token, FlexSendMessage("馬場情報", gen_group_battle_start_json(group.field)))
     else:
-        room.status = "get_skill"
-        save_pkl(users, "pkl/users")
-        line_bot_api.push_message(id, FlexSendMessage("馬情報", gen_tokkun_json(room.horse)))
+        if user.get_status() == "Create_Room":
+            if check_herf(command):
+                horse = Horse(command)
+                horse.set_skill(c.NONE)
+                user.horse = horse
+                user.set_status(None)
+                save_pkl(users, "pkl/users")
+                line_bot_api.push_message(id, TextSendMessage("馬を作成しました!"))
+                line_bot_api.push_message(id, FlexSendMessage("馬情報", gen_horse_info_json(horse, None)))
+            else: line_bot_api.push_message(id, TextSendMessage("名前は半角文字の12字以内である必要があります"))
+        elif command == "h":
+            #print(gen_horse_info_json(field))
+            line_bot_api.reply_message(
+                event.reply_token,
+                FlexSendMessage(
+                    alt_text='馬情報',
+                    contents=gen_horses_info_json(race)
+                )
+            )
+        elif command == "c":
+            race = create_random_race(user.horse)
+            user.set_race(race)
+            save_pkl(users, "pkl/users")
+            df = make_df(user.race)
+            df = df.sort_values("Rank")
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(f"{df}")
+            )
+        elif command == "v":
+            url = f"{URL}/img/video.mp4"
+            line_bot_api.push_message(id, VideoSendMessage(
+                preview_image_url = "https://3.bp.blogspot.com/-DVHqPcbR9fA/VkxMAs3sgsI/AAAAAAAA0ss/ofdmv2PEXWo/s450/sports_keiba.png",
+                original_content_url = url
+            ))
+        elif command == "reset":
+            user.tickets = {}
+            user.gold = 100000
+            save_pkl(users, "pkl/users")
+        else:
+            user.status = "get_skill"
+            save_pkl(users, "pkl/users")
+            line_bot_api.push_message(id, FlexSendMessage("馬情報", gen_tokkun_json(user.horse)))
 
 
 if __name__ == "__main__":
