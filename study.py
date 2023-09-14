@@ -74,9 +74,10 @@ class Field:
     def __init__(self, length, lane_size):
         self.length = length
         self.lane_size = lane_size
-        self.type = c.GRASS
+        self.type = random.randint(c.GRASS, c.DURT)
         self.slope = {0: c.FLAT}
-        self.weather = c.CLEAR
+        self.weather = random.randint(c.CLEAR, c.RAIN)
+        self.name = "京都"
 
     def set_weather(self, weather):
         self.weather = weather
@@ -330,7 +331,7 @@ def progress(horse, field, lest):
             prog = random.randint(speed - 5, speed + 5) * fix
         else:
             horse.status = c.REST
-            horse.stats_now["hp"] += 1
+            horse.stats_now["hp"] += horse.stats["hp"] * 0.05
             if horse.stats_now["hp"] >= horse.stats["hp"]: horse.status = c.RUN
             prog = random.randint(int(speed/2) - 5, int(speed/2) + 5) * fix
     else:
@@ -339,7 +340,7 @@ def progress(horse, field, lest):
             prog = random.randint(speed - 5, speed + 5) * fix
         else:
             horse.status = c.REST
-            horse.stats_now["power"] += 1
+            horse.stats_now["power"] += horse.stats["power"] * 0.05
             if horse.stats_now["power"] >= horse.stats["power"]: horse.status = c.RUN
             prog = random.randint(int(speed/2) - 5, int(speed/2) + 0) * fix
     return prog / 6

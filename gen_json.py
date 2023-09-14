@@ -1,4 +1,5 @@
 import datetime
+from random	import randint
 from study import Horse, Field, Race
 import constant as c
 import numpy as np
@@ -115,7 +116,7 @@ def gen_field_info_json(field: Field):
     "action":{"type":"postback","label":"馬券購入へ(1口100G)","data":"buy_ticket"}}],"flex":0}}
     return contents
 
-def gen_receipt(tickets: dict, gold):
+def gen_receipt(tickets: dict, gold, field):
     gold_sum = sum([100 * n for n in tickets.values()])
     now = datetime.datetime.now()
     contents ={
@@ -225,7 +226,7 @@ def gen_receipt(tickets: dict, gold):
               },
               {
                 "type": "text",
-                "text": "京都",
+                "text": f"{field.name}",
                 "size": "md",
                 "weight": "bold"
               },
@@ -239,7 +240,7 @@ def gen_receipt(tickets: dict, gold):
                     "contents": [
                       {
                         "type": "text",
-                        "text": "11",
+                        "text": f"{randint(1, 12)}",
                         "align": "center",
                         "weight": "bold",
                         "color": "#FFFFFF"
@@ -578,7 +579,7 @@ def gen_receipt(tickets: dict, gold):
     )
     return contents
 
-def gen_train_json():
+def gen_train_json(horse):
     contents = {
   "type": "carousel",
   "contents": [
@@ -1139,6 +1140,7 @@ def gen_train_json():
     }
   ]
 }
+    contents["contents"].append(gen_tokkun_json(horse))
     return contents
 
 def gen_train_result_json(name, diff):

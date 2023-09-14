@@ -4,7 +4,7 @@ from linebot.exceptions import InvalidSignatureError
 from linebot.models import TextMessage, TextSendMessage, FlexSendMessage, VideoSendMessage, AudioSendMessage
 from linebot.models import RichMenu, RichMenuArea, RichMenuBounds, RichMenuSize
 from linebot.models import MessageEvent, JoinEvent, PostbackEvent, LeaveEvent, FollowEvent, UnfollowEvent
-from linebot.models import MessageAction, PostbackAction
+from linebot.models import PostbackAction
 import os
 import pandas as pd
 import pickle
@@ -14,6 +14,7 @@ import unicodedata
 from study import Horse, Rider, Field, Race
 from gen_json import *
 from sec import *
+import examples
 
 class User:
     def __init__(self, id):
@@ -141,22 +142,21 @@ def create_random_field():
     return field
 
 def create_random_race(user_horse):
-    field = create_random_field()
-    horses = []
-    for n in range(field.lane_size):
-        if n == 0 and user_horse is not None: horse = user_horse
-        else:
-            horse = Horse(f"{n}")
+    field = examples.field()[0]
+    horses = examples.horse()
+    if user_horse is not None: horses.insert(0, user_horse)
+    if len(horses) < field.lane_size:
+        for i in range(field.lane_size - len(horses)):
+            horse = Horse(f"{i}")
             horse.skill = random.randint(c.STABLE, c.NONE)
-            #horse.skill = c.NONE
             horse.stats["speed"] = random.randint(35, 100)
             horse.stats["hp"] = random.randint(35, 100)
             horse.stats["power"] = random.randint(35, 100)
             horse.fine_type = random.randint(c.GRASS, c.DURT)
+            horses.append(horse)
+    for i, horse in enumerate(horses, 1):
         horse.set_rider(Rider(f"n"))
-        #field.add_horse(horse)
-        horse.set_id(n)
-        horses.append(horse)
+        horse.set_id(i)
     race = Race(horses, field)
     return race
 
@@ -284,12 +284,9 @@ def send_video(path):
 
 @app.route("/callback", methods=['POST'])
 def callback():
-    # get X-Line-Signature header value
-    signature = request.headers['X-Line-Signature']
-    # get request body as text
     body = request.get_data(as_text=True)
+    signature = request.headers['X-Line-Signature']
     app.logger.info("Request body: " + body)
-    # handle webhook body
     try:
         handler.handle(body, signature)
     except InvalidSignatureError:
@@ -378,7 +375,7 @@ def on_postback(event):
         save_pkl(users, "pkl/users")
         line_bot_api.push_message(to = user_id, messages = FlexSendMessage("馬場情報", gen_field_info_json(user.race.field)))
         user.race.start()
-        save_pkl((user.race.url, user.race.result), f"pkl/result_{user_id}")
+        save_pkl((user.race.url, user.race.result, user.horse.stamina), f"pkl/result_{user_id}")
     elif command == "buy_ticket" and (user.status == "race" or user.status == "buy_ticket"):
         user.status = "buy_ticket"
         save_pkl(users, "pkl/users")
@@ -399,7 +396,7 @@ def on_postback(event):
             print(user.gold)
             user.gold -= n * 100
             save_pkl(users, "pkl/users")
-            line_bot_api.push_message(to = user_id, messages = FlexSendMessage("購入馬券", gen_receipt(user.tickets, user.gold)))
+            line_bot_api.push_message(to = user_id, messages = FlexSendMessage("購入馬券", gen_receipt(user.tickets, user.gold, user.race.field)))
     elif command == "buy_end" and user.status == "buy_ticket":
         result = None
         if os.path.exists(f"pkl/result_{user_id}.pkl"):
@@ -419,7 +416,8 @@ def on_postback(event):
             ret = get_return_gold(user.tickets, user.race.odds, result[1])
             user.gold += ret
             user.tickets = {}
-            save_pkl((None, None), f"pkl/result_{user_id}")
+            user.horse.stamina = result[2]
+            save_pkl((None, None, None), f"pkl/result_{user_id}")
             save_pkl(users, "pkl/users")
             r = [-1 for _ in result[1]]
             for i in result[1]:
@@ -436,7 +434,7 @@ def on_postback(event):
         else:
             user.status = "train"
             save_pkl(users, "pkl/users")
-            line_bot_api.push_message(user_id, FlexSendMessage("トレーニング", gen_train_json()))
+            line_bot_api.push_message(user_id, FlexSendMessage("トレーニング", gen_train_json(user.horse)))
     elif command == "train_speed" and user.status == "train":
         user.status = None
         diff = train_user_horse("speed", user.horse)
@@ -541,7 +539,7 @@ def handle_message(event):
     if group is not None:
         if command == "battle":
             group.reset()
-            group.field = create_random_field()
+            group.field = examples.field()[0]
             group.field.lane_size = 5
             save_pkl(groups, "pkl/groups")
             #line_bot_api.push_message(group.id, AudioSendMessage("url", 0))
