@@ -132,15 +132,6 @@ def train_user_horse(mode: str, horse: Horse):
         horse.stamina += random.randint(5, 10)
     return ((prev_stats, prev_pt, prev_stamina), (horse.stats, horse.pt, horse.stamina))
 
-def create_random_field():
-    lane_size = random.randint(4, 12)
-    # DEBUG MAX RANGE 2000 -> 600
-    field = Field(random.randint(500, 500), lane_size)
-    #field.set_slope({0: c.DOWN})
-    field.weather = random.randint(c.CLEAR, c.RAIN)
-    field.type = random.randint(c.GRASS, c.DURT)
-    return field
-
 def create_random_race(user_horse):
     field = examples.field()[0]
     horses = examples.horse()
@@ -422,9 +413,7 @@ def on_postback(event):
             r = [-1 for _ in result[1]]
             for i in result[1]:
                 r[result[1][i]] = i
-            # TODO Ranking ICON
             line_bot_api.push_message(user_id, FlexSendMessage("レース結果", gen_ranking_json(user.race.lane_info, r)))
-            # TODO Making Receipt
             line_bot_api.push_message(user_id, TextSendMessage(f"払い戻し金は{ret}円です。\n所持金が{user.gold}Gになりました!"))
             line_bot_api.push_message(user_id, TextSendMessage(f"{user.horse.name}の体力が{user.horse.stamina}になりました!"))
     elif command == "train":
@@ -457,7 +446,7 @@ def on_postback(event):
         diff = train_user_horse("int", user.horse)
         save_pkl(users, "pkl/users")
         line_bot_api.push_message(user_id, FlexSendMessage("トレーニング", gen_train_int_json(user_horse.name, diff)))
-    elif command == "get_skill" and user.status == "get_skill":
+    elif command == "get_skill" and user.status == "train":
         prev_skill = user.horse.skill
         while True:
             user.horse.skill = random.randint(c.STABLE, c.NONE)
@@ -555,6 +544,7 @@ def handle_message(event):
                 line_bot_api.push_message(id, TextSendMessage("馬を作成しました!"))
                 line_bot_api.push_message(id, FlexSendMessage("馬情報", gen_horse_info_json(horse, None)))
             else: line_bot_api.push_message(id, TextSendMessage("名前は半角文字の12字以内である必要があります"))
+        '''
         elif command == "h":
             #print(gen_horse_info_json(field))
             line_bot_api.reply_message(
@@ -588,7 +578,7 @@ def handle_message(event):
             user.status = "get_skill"
             save_pkl(users, "pkl/users")
             line_bot_api.push_message(id, FlexSendMessage("馬情報", gen_tokkun_json(user.horse)))
-
+        '''
 
 if __name__ == "__main__":
     app.run()
